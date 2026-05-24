@@ -13,9 +13,17 @@ function Tricasts() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   
-  // Filter state for minimum payout
-  const payoutSteps = [0, 50, 100, 250, 500, 1000];
-  const [minPayout, setMinPayout] = useState(0);
+  const [mode, setMode] = useState('tricast'); // 'tricast' or 'forecast'
+
+  // Filter state for minimum payout - steps change based on mode
+  const payoutSteps = useMemo(() => 
+    mode === 'tricast' 
+      ? [0, 50, 100, 250, 500, 1000] 
+      : [0, 10, 20, 50, 100, 250]
+  , [mode]);
+
+  const [payoutIndex, setPayoutIndex] = useState(0);
+  const minPayout = payoutSteps[payoutIndex];
 
   // Convert YYYY-MM-DD to DD-MM-YYYY for URL and Header
   const displayDate = useMemo(() => {
@@ -52,7 +60,7 @@ function Tricasts() {
     }
   };
 
-  const getTricastSelections = (horses, useAvg) => {
+  const getSelections = (horses, useAvg, count) => {
     const ratedHorses = (horses || [])
       .filter(horse => {
         const currentOdds = horse.odds?.[horse.odds.length - 1];
@@ -74,36 +82,38 @@ function Tricasts() {
         return { ...horse, rating: score };
       });
 
-    return ratedHorses.sort((a, b) => b.rating - a.rating).slice(0, 3);
+    return ratedHorses.sort((a, b) => b.rating - a.rating).slice(0, count);
   };
 
   const processedRaces = useMemo(() => {
+    const horseCount = mode === 'tricast' ? 3 : 2;
+    const minRunners = mode === 'tricast' ? 8 : 2;
     return races
       .filter(race => {
         const detail = (race.detail || '').toLowerCase();
         const runnerCount = race.horses?.length || 0;
         const isEligibleType = detail.includes('handicap') || detail.includes('class 1') || detail.includes('nursery');
-        return runnerCount >= 8 && isEligibleType;
+        return runnerCount >= minRunners && isEligibleType;
       })
       .map(race => {
-        const recentS = getTricastSelections(race.horses, true);
-        const highestS = getTricastSelections(race.horses, false);
+        const recentS = getSelections(race.horses, true, horseCount);
+        const highestS = getSelections(race.horses, false, horseCount);
         
-        const recentP = recentS.length === 3 
+        const recentP = recentS.length === horseCount 
           ? recentS.reduce((acc, h) => acc * (parseFloat(h.odds?.[h.odds.length - 1]) || 0), 1)
           : 0;
-        const highestP = highestS.length === 3 
+        const highestP = highestS.length === horseCount 
           ? highestS.reduce((acc, h) => acc * (parseFloat(h.odds?.[h.odds.length - 1]) || 0), 1)
           : 0;
 
-        // Check if both strategies picked the same three horses (set comparison)
-        const isSame = recentS.length === 3 && highestS.length === 3 &&
+        // Check if both strategies picked the same set of horses
+        const isSame = recentS.length === horseCount && highestS.length === horseCount &&
           recentS.every(h => highestS.some(hh => hh.name === h.name));
 
         return { ...race, recentS, recentP, highestS, highestP, isSame };
       })
       .filter(race => race.recentP >= minPayout || race.highestP >= minPayout);
-  }, [races, minPayout]);
+  }, [races, minPayout, mode]);
 
   const tricastCount = useMemo(() => {
     return processedRaces.reduce((acc, race) => {
@@ -120,7 +130,7 @@ function Tricasts() {
     <div className="tricasts-container">
       <header className="tricasts-header">
         <h1 onClick={handleOpenDatePicker} style={{ cursor: 'pointer' }} title="Click to change date">
-          Tricasts for {displayDate} 📅
+          {mode === 'tricast' ? 'Tricasts' : 'Forecasts'} for {displayDate} 📅
         </h1>
         <input 
           type="date" 
@@ -130,17 +140,25 @@ function Tricasts() {
           className="hidden-date-input"
         />
         <div className="payout-filter-wrapper">
+          <div className="mode-toggle-row" style={{ marginBottom: '15px' }}>
+            <button 
+              onClick={() => setMode(prev => prev === 'tricast' ? 'forecast' : 'tricast')}
+              className={`filter-btn active`}
+            >
+              {mode === 'tricast' ? '🎯 Switch to Forecast' : '🎯 Switch to Tricast'}
+            </button>
+          </div>
           <span className="payout-label">
             Min Payout: {minPayout === 0 ? 'Show All' : `${minPayout}/1+`}
-            <span className="tricast-count">({tricastCount} opportunities)</span>
+            <span className="tricast-count">({tricastCount} {mode} opportunities)</span>
           </span>
           <input 
             type="range"
             min="0"
             max={payoutSteps.length - 1}
             step="1"
-            value={payoutSteps.indexOf(minPayout)}
-            onChange={(e) => setMinPayout(payoutSteps[parseInt(e.target.value, 10)])}
+            value={payoutIndex}
+            onChange={(e) => setPayoutIndex(parseInt(e.target.value, 10))}
             className="payout-slider"
           />
         </div>
@@ -228,7 +246,7 @@ function Tricasts() {
             })}
           </div>
         )}
-        {!loading && !error && processedRaces.length === 0 && <p>No tricast races found matching your criteria.</p>}
+        {!loading && !error && processedRaces.length === 0 && <p>No {mode} races found matching your criteria.</p>}
       </main>
     </div>
   );
