@@ -4,7 +4,10 @@ function Tricasts() {
   const dateInputRef = useRef(null);
   const [selectedDate, setSelectedDate] = useState(() => {
     const now = new Date();
-    return now.toISOString().split('T')[0]; // YYYY-MM-DD for native input
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   });
   const [races, setRaces] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -151,68 +154,70 @@ function Tricasts() {
             {processedRaces.map((race, idx) => {
               return (
                 <div key={idx} className="race-card">
-                  <span className="race-time">🕒 {race.time}</span>
-                  <span className="race-place">📍 {race.place}</span>
+                  <div className="race-header-row">
+                    <span className="race-time">{race.time}</span>
+                    <span className="race-place">{race.place}</span>
+                  </div>
                   <span className="race-detail">{race.detail}</span>
                   
                   <div className="tricast-selections">
                     {race.isSame && race.recentP >= minPayout && race.recentP > 0 ? (
                       <div className="strategy-section">
-                        <h4>Recent & Highest</h4>
+                        <h4>Recent & Highest • {Math.round(race.recentP)}/1</h4>
                         {race.recentS.map((horse, hIdx) => {
                           const odds = horse.odds?.[horse.odds.length - 1];
                           const disp = odds === "null" || odds === "NR" ? "NR" : (odds || "x");
                           return (
                             <div key={hIdx} className="selection-row">
-                              <span className="selection-name">{hIdx + 1}. {horse.name}</span>
+                              <div className="selection-name-container">
+                                <span className="selection-no">{horse.number}.</span>
+                                {horse.silks && <img src={horse.silks} alt="silks" className="selection-silks" />}
+                                <span className="selection-name">{horse.name}</span>
+                              </div>
                               <span className="selection-odds">{disp}</span>
                             </div>
                           );
                         })}
-                        <div className="selection-row payout-row">
-                          <span className="selection-name">Est. Payout</span>
-                          <span className="selection-odds">{Math.round(race.recentP)}/1</span>
-                        </div>
                       </div>
                     ) : (
                       <>
                         {race.recentP >= minPayout && race.recentP > 0 && (
                       <div className="strategy-section">
-                        <h4>Recent</h4>
+                        <h4>Recent • {Math.round(race.recentP)}/1</h4>
                         {race.recentS.map((horse, hIdx) => {
                           const odds = horse.odds?.[horse.odds.length - 1];
                           const disp = odds === "null" || odds === "NR" ? "NR" : (odds || "x");
                           return (
                             <div key={hIdx} className="selection-row">
-                              <span className="selection-name">{hIdx + 1}. {horse.name}</span>
+                              <div className="selection-name-container">
+                                <span className="selection-no">{horse.number}.</span>
+                                {horse.silks && <img src={horse.silks} alt="silks" className="selection-silks" />}
+                                <span className="selection-name">{horse.name}</span>
+                              </div>
                               <span className="selection-odds">{disp}</span>
                             </div>
                           );
                         })}
-                        <div className="selection-row payout-row">
-                          <span className="selection-name">Est. Payout</span>
-                          <span className="selection-odds">{Math.round(race.recentP)}/1</span>
-                        </div>
                       </div>
                     )}
 
                         {race.highestP >= minPayout && race.highestP > 0 && (
                       <div className={`strategy-section ${race.recentP >= minPayout && race.recentP > 0 ? 'strategy-divider' : ''}`}>
-                        <h4>Highest</h4>
+                        <h4>Highest • {Math.round(race.highestP)}/1</h4>
                         {race.highestS.map((horse, hIdx) => {
                           const odds = horse.odds?.[horse.odds.length - 1];
                           const disp = odds === "null" || odds === "NR" ? "NR" : (odds || "x");
                           return (
                             <div key={hIdx} className="selection-row">
-                              <span className="selection-name">{hIdx + 1}. {horse.name}</span>
+                              <div className="selection-name-container">
+                                <span className="selection-no">{horse.number}.</span>
+                                {horse.silks && <img src={horse.silks} alt="silks" className="selection-silks" />}
+                                <span className="selection-name">{horse.name}</span>
+                              </div>
                               <span className="selection-odds">{disp}</span>
                             </div>
                           );
                         })}
-                        <div className="selection-row payout-row">
-                          <span className="selection-name">Est. Payout</span>
-                          <span className="selection-odds">{Math.round(race.highestP)}/1</span>
-                        </div>
                       </div>
                     )}
                       </>

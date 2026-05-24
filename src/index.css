@@ -74,9 +74,7 @@ h2 {
 }
 
 h1 {
-  font-size: 56px;
   letter-spacing: -1.68px;
-  margin: 32px 0;
   @media (max-width: 1024px) {
     font-size: 36px;
     margin: 20px 0;
@@ -220,7 +218,7 @@ code {
 
 .races-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 20px;
   padding: 10px;
 }
@@ -242,12 +240,18 @@ code {
   border-color: var(--accent);
 }
 
+.race-header-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
 .race-time {
   font-size: 1.4rem;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--text-h);
   font-family: var(--mono);
-  margin-bottom: 8px;
 }
 
 .race-place {
@@ -288,9 +292,30 @@ code {
 
 .selection-row {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   padding: 3px 0;
   font-size: 0.95rem;
+  gap: 10px;
+}
+
+.selection-name-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.selection-silks {
+  height: 18px;
+  width: auto;
+}
+
+.selection-no {
+  font-weight: 600;
+  color: var(--text-h);
+  display: inline-block;
+  min-width: 28px;
 }
 
 .selection-name { font-weight: 600; color: var(--text-h); }
