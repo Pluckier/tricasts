@@ -109,3 +109,120 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+.tricasts-container {
+  padding: 20px;
+  flex: 1;
+}
+
+.tricasts-header {
+  margin-bottom: 40px;
+}
+
+.date-picker-wrapper {
+  font-size: 1.1rem;
+}
+
+.date-input {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-family: var(--sans);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.date-input:focus {
+  border-color: var(--accent);
+}
+
+.races-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 20px;
+  padding: 10px;
+}
+
+.race-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: var(--shadow);
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.race-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--accent);
+}
+
+.race-time {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--accent);
+  font-family: var(--mono);
+  margin-bottom: 8px;
+}
+
+.race-place {
+  font-size: 1.1rem;
+  color: var(--text-h);
+  font-weight: 500;
+}
+
+.race-detail {
+  font-size: 0.85rem;
+  color: var(--text);
+  margin-top: 10px;
+  font-style: italic;
+  opacity: 0.8;
+}
+
+.tricast-selections {
+  margin-top: 15px;
+  width: 100%;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  text-align: left;
+}
+
+.tricast-selections h4 {
+  margin: 0 0 8px 0;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+}
+
+.selection-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  font-size: 0.95rem;
+}
+
+.selection-name { font-weight: 600; color: var(--text-h); }
+.selection-odds { color: var(--accent); font-weight: bold; font-family: var(--mono); }
+
+.payout-row {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  font-size: 1rem;
+}
+
+.status-msg {
+  font-size: 1.2rem;
+  margin-top: 40px;
+}
+
+.status-msg.error {
+  color: #ef4444;
+}
