@@ -44,8 +44,8 @@ function Tricasts() {
   }, [selectedDate]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
+    const fetchData = async (isInitial = true) => {
+      if (isInitial) setLoading(true);
       setError(null);
       try {
         const response = await fetch(`https://www.pluckier.co.uk/${displayDate}-races.json`);
@@ -54,12 +54,15 @@ function Tricasts() {
         setRaces(data || []);
       } catch (err) {
         setError(err.message);
-        setRaces([]);
       } finally {
-        setLoading(false);
+        if (isInitial) setLoading(false);
       }
     };
-    fetchData();
+
+    fetchData(true);
+    const intervalId = setInterval(() => fetchData(false), 15 * 60 * 1000);
+
+    return () => clearInterval(intervalId);
   }, [displayDate]);
   
   const handleOpenDatePicker = () => {
