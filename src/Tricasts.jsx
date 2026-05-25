@@ -25,6 +25,17 @@ function Tricasts() {
   const [payoutIndex, setPayoutIndex] = useState(0);
   const minPayout = payoutSteps[payoutIndex];
 
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('tricast-theme');
+    if (saved) return saved;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('tricast-theme', theme);
+  }, [theme]);
+
   // Convert YYYY-MM-DD to DD-MM-YYYY for URL and Header
   const displayDate = useMemo(() => {
     const [y, m, d] = selectedDate.split('-');
@@ -140,27 +151,35 @@ function Tricasts() {
           className="hidden-date-input"
         />
         <div className="payout-filter-wrapper">
-          <div className="mode-toggle-row" style={{ marginBottom: '15px' }}>
-            <button 
-              onClick={() => setMode(prev => prev === 'tricast' ? 'forecast' : 'tricast')}
-              className={`filter-btn active`}
-            >
-              {mode === 'tricast' ? '🎯 Switch to Forecast' : '🎯 Switch to Tricast'}
-            </button>
+          <button 
+            onClick={() => setMode(prev => prev === 'tricast' ? 'forecast' : 'tricast')}
+            className="filter-btn active"
+          >
+            {mode === 'tricast' ? '🎯 Forecast' : '🎯 Tricast'}
+          </button>
+
+          <div className="payout-slider-container">
+            <span className="payout-label">
+              Min Payout: {minPayout === 0 ? 'All' : `${minPayout}/1+`}
+              <span className="tricast-count">({tricastCount})</span>
+            </span>
+            <input 
+              type="range"
+              min="0"
+              max={payoutSteps.length - 1}
+              step="1"
+              value={payoutIndex}
+              onChange={(e) => setPayoutIndex(parseInt(e.target.value, 10))}
+              className="payout-slider"
+            />
           </div>
-          <span className="payout-label">
-            Min Payout: {minPayout === 0 ? 'Show All' : `${minPayout}/1+`}
-            <span className="tricast-count">({tricastCount} {mode} opportunities)</span>
-          </span>
-          <input 
-            type="range"
-            min="0"
-            max={payoutSteps.length - 1}
-            step="1"
-            value={payoutIndex}
-            onChange={(e) => setPayoutIndex(parseInt(e.target.value, 10))}
-            className="payout-slider"
-          />
+
+          <button 
+            onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+            className="filter-btn active theme-toggle"
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
         </div>
       </header>
 
