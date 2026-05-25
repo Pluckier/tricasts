@@ -130,13 +130,17 @@ function Tricasts() {
 
   const processedRaces = useMemo(() => {
     const horseCount = mode === 'tricast' ? 3 : 2;
-    const minRunners = mode === 'tricast' ? 8 : 2;
     return races
       .filter(race => {
         const detail = (race.detail || '').toLowerCase();
         const runnerCount = race.horses?.length || 0;
-        const isEligibleType = detail.includes('handicap') || detail.includes('class 1') || detail.includes('nursery');
-        return runnerCount >= minRunners && isEligibleType;
+
+        if (mode === 'tricast') {
+          const isEligibleType = detail.includes('handicap') || detail.includes('class 1') || detail.includes('nursery');
+          return runnerCount >= 8 && isEligibleType;
+        }
+        
+        return runnerCount >= 2;
       })
       .map(race => {
         const recentS = getSelections(race.horses, true, horseCount);
@@ -197,8 +201,8 @@ function Tricasts() {
           newToasts.push({ id: Date.now() + Math.random(), type: 'new', message: `✨ New Strategy: ${val.label} @ ${val.payout}/1` });
         } else {
           const old = oldMap.get(id);
-          if (old.horses !== val.horses || old.payout !== val.payout) {
-            newToasts.push({ id: Math.random(), type: 'change', message: `🔄 Changed: ${val.label} (Now ${val.payout}/1)` });
+          if (old.horses !== val.horses) {
+            newToasts.push({ id: Math.random(), type: 'change', message: `🔄 Runner Changed: ${val.label}` });
           }
         }
       });
