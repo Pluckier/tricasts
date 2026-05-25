@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import TrackWorker from './TrackWorker';
+import AuthGuard from './AuthGuard';
+
+// 🟢 SET TO 'false' TO DISABLE AUTH GUARD
+const AUTH_ACTIVE = false;
 
 function Tricasts() {
   const dateInputRef = useRef(null);
@@ -235,7 +239,7 @@ function Tricasts() {
     }, 0);
   }, [processedRaces, minPayout]);
 
-  return (
+  const renderContent = (auth = {}) => (
     <div className="tricasts-container">
       <div className="toast-container">
         {toasts.map(toast => (
@@ -385,6 +389,14 @@ function Tricasts() {
         {!loading && !error && processedRaces.length === 0 && <p>No {mode} races found matching your criteria.</p>}
       </main>
     </div>
+  );
+
+  if (!AUTH_ACTIVE) return renderContent();
+
+  return (
+    <AuthGuard>
+      {(authData) => renderContent(authData)}
+    </AuthGuard>
   );
 }
 
