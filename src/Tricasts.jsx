@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import TrackWorker from './TrackWorker';
 
 function Tricasts() {
   const dateInputRef = useRef(null);
@@ -157,6 +158,8 @@ function Tricasts() {
           >
             {mode === 'tricast' ? '🎯 Forecast' : '🎯 Tricast'}
           </button>
+
+          <TrackWorker />
 
           <div className="payout-slider-container">
             <span className="payout-label">
