@@ -14,6 +14,29 @@ function Tricasts() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   
+  const [toasts, setToasts] = useState([]);
+  const lastDataRef = useRef([]);
+  const prevProcessedRef = useRef([]);
+
+  // Track which races have bets placed (Set of "Time Place" strings)
+  const [placedBets, setPlacedBets] = useState(() => {
+    const saved = localStorage.getItem('tricast-bets');
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
+
+  useEffect(() => {
+    localStorage.setItem('tricast-bets', JSON.stringify([...placedBets]));
+  }, [placedBets]);
+
+  const toggleBet = (raceKey) => {
+    setPlacedBets(prev => {
+      const next = new Set(prev);
+      if (next.has(raceKey)) next.delete(raceKey);
+      else next.add(raceKey);
+      return next;
+    });
+  };
+
   const [mode, setMode] = useState('tricast'); // 'tricast' or 'forecast'
 
   // Filter state for minimum payout - steps change based on mode
@@ -130,6 +153,68 @@ function Tricasts() {
       .filter(race => race.recentP >= minPayout || race.highestP >= minPayout);
   }, [races, minPayout, mode]);
 
+  useEffect(() => {
+    // Only run comparison if we already had data (not initial load)
+    // and if the races data actually changed reference (background refresh)
+    if (races.length > 0 && lastDataRef.current.length > 0 && races !== lastDataRef.current) {
+      
+      const getOppsMap = (processed) => {
+        const map = new Map();
+        processed.forEach(race => {
+          const raceKey = `${race.time} ${race.place}`;
+          if (race.isSame && race.recentP >= minPayout && race.recentP > 0) {
+            const id = `${raceKey}-both`;
+            map.set(id, { raceKey, label: `${raceKey} (Both)`, horses: race.recentS.map(h => h.name).sort().join(','), payout: Math.round(race.recentP) });
+          } else {
+            if (race.recentP >= minPayout && race.recentP > 0) {
+              const id = `${raceKey}-recent`;
+              map.set(id, { raceKey, label: `${raceKey} (Recent)`, horses: race.recentS.map(h => h.name).sort().join(','), payout: Math.round(race.recentP) });
+            }
+            if (race.highestP >= minPayout && race.highestP > 0) {
+              const id = `${raceKey}-highest`;
+              map.set(id, { raceKey, label: `${raceKey} (Highest)`, horses: race.highestS.map(h => h.name).sort().join(','), payout: Math.round(race.highestP) });
+            }
+          }
+        });
+        return map;
+      };
+
+      const oldMap = getOppsMap(prevProcessedRef.current);
+      const newMap = getOppsMap(processedRaces);
+      const newToasts = [];
+
+      newMap.forEach((val, id) => {
+        // Only notify if the user has ticked this race
+        if (!placedBets.has(val.raceKey)) return;
+
+        if (!oldMap.has(id)) {
+          // Note: New races likely won't be ticked yet, but this handles strategy changes within a ticked race
+          newToasts.push({ id: Date.now() + Math.random(), type: 'new', message: `✨ New Strategy: ${val.label} @ ${val.payout}/1` });
+        } else {
+          const old = oldMap.get(id);
+          if (old.horses !== val.horses || old.payout !== val.payout) {
+            newToasts.push({ id: Math.random(), type: 'change', message: `🔄 Changed: ${val.label} (Now ${val.payout}/1)` });
+          }
+        }
+      });
+
+      oldMap.forEach((val, id) => {
+        if (!placedBets.has(val.raceKey)) return;
+
+        if (!newMap.has(id)) {
+          newToasts.push({ id: Date.now() + Math.random(), type: 'removed', message: `❌ Removed/Finished: ${val.label}` });
+        }
+      });
+
+      if (newToasts.length > 0) {
+        setToasts(prev => [...prev, ...newToasts]);
+      }
+    }
+
+    lastDataRef.current = races;
+    prevProcessedRef.current = processedRaces;
+  }, [races, processedRaces, mode, minPayout]);
+
   const tricastCount = useMemo(() => {
     return processedRaces.reduce((acc, race) => {
       if (race.isSame) {
@@ -143,6 +228,15 @@ function Tricasts() {
 
   return (
     <div className="tricasts-container">
+      <div className="toast-container">
+        {toasts.map(toast => (
+          <div key={toast.id} className={`toast toast-${toast.type}`}>
+            <span className="toast-message">{toast.message}</span>
+            <button className="toast-close" onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}>×</button>
+          </div>
+        ))}
+      </div>
+
       <header className="tricasts-header">
         <h1 onClick={handleOpenDatePicker} style={{ cursor: 'pointer' }} title="Click to change date">
           {mode === 'tricast' ? 'Tricasts' : 'Forecasts'} for {displayDate} 📅
@@ -195,11 +289,19 @@ function Tricasts() {
         {!loading && !error && processedRaces.length > 0 && (
           <div className="races-grid">
             {processedRaces.map((race, idx) => {
+              const raceKey = `${race.time} ${race.place}`;
               return (
                 <div key={idx} className="race-card">
                   <div className="race-header-row">
                     <span className="race-time">{race.time}</span>
                     <span className="race-place">{race.place}</span>
+                    <input 
+                      type="checkbox" 
+                      className="bet-checkbox"
+                      checked={placedBets.has(raceKey)}
+                      onChange={() => toggleBet(raceKey)}
+                      title="Tick if you have a bet on this race to receive update notifications"
+                    />
                   </div>
                   <span className="race-detail">{race.detail}</span>
                   
