@@ -68,7 +68,12 @@ function Tricasts() {
 
   useEffect(() => {
     const fetchData = async (isInitial = true) => {
-      if (isInitial) setLoading(true);
+      if (isInitial) {
+        setLoading(true);
+        setRaces([]); // Clear existing grid immediately when switching dates
+        lastDataRef.current = []; // Reset baseline to prevent notifications across days
+        prevProcessedRef.current = [];
+      }
       setError(null);
       try {
         const response = await fetch(`https://www.pluckier.co.uk/${displayDate}-races.json`);
