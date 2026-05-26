@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, forwardRef } from 'react';
 import TrackWorker from './TrackWorker';
 import AuthGuard from './AuthGuard';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 // 🟢 SET TO 'false' TO DISABLE AUTH GUARD
 const AUTH_ACTIVE = false;
 
 function Tricasts() {
-  const dateInputRef = useRef(null);
   const [selectedDate, setSelectedDate] = useState(() => {
     const now = new Date();
     const y = now.getFullYear();
@@ -97,15 +98,19 @@ function Tricasts() {
     return () => clearInterval(intervalId);
   }, [displayDate]);
   
-  const handleOpenDatePicker = () => {
-    if (dateInputRef.current) {
-      if (typeof dateInputRef.current.showPicker === 'function') {
-        dateInputRef.current.showPicker();
-      } else {
-        dateInputRef.current.click();
-      }
-    }
-  };
+  // Custom input component for react-datepicker to maintain the H1 styling
+  const CustomDateInput = forwardRef(({ value, onClick }, ref) => (
+    <h1 onClick={onClick} ref={ref} style={{ cursor: 'pointer' }} title="Click to change date">
+      {mode === 'tricast' ? 'Tricasts' : 'Forecasts'} for {value} 📅
+    </h1>
+  ));
+
+  // Convert YYYY-MM-DD string to Date object for react-datepicker
+  const dateObject = useMemo(() => {
+    if (!selectedDate) return new Date();
+    const [y, m, d] = selectedDate.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }, [selectedDate]);
 
   const getSelections = (horses, useAvg, count) => {
     const ratedHorses = (horses || [])
@@ -177,15 +182,15 @@ function Tricasts() {
           const raceKey = `${race.time} ${race.place}`;
           if (race.isSame && race.recentP >= minPayout && race.recentP > 0) {
             const id = `${raceKey}-both`;
-            map.set(id, { raceKey, label: `${raceKey} (Both)`, horses: race.recentS.map(h => h.name).sort().join(','), payout: Math.round(race.recentP) });
+            map.set(id, { raceKey, label: `${raceKey} (Both)`, horses: race.recentS.map(h => h.name).sort().join(', '), payout: Math.round(race.recentP) });
           } else {
             if (race.recentP >= minPayout && race.recentP > 0) {
               const id = `${raceKey}-recent`;
-              map.set(id, { raceKey, label: `${raceKey} (Recent)`, horses: race.recentS.map(h => h.name).sort().join(','), payout: Math.round(race.recentP) });
+              map.set(id, { raceKey, label: `${raceKey} (Recent)`, horses: race.recentS.map(h => h.name).sort().join(', '), payout: Math.round(race.recentP) });
             }
             if (race.highestP >= minPayout && race.highestP > 0) {
               const id = `${raceKey}-highest`;
-              map.set(id, { raceKey, label: `${raceKey} (Highest)`, horses: race.highestS.map(h => h.name).sort().join(','), payout: Math.round(race.highestP) });
+              map.set(id, { raceKey, label: `${raceKey} (Highest)`, horses: race.highestS.map(h => h.name).sort().join(', '), payout: Math.round(race.highestP) });
             }
           }
         });
@@ -206,7 +211,7 @@ function Tricasts() {
         } else {
           const old = oldMap.get(id);
           if (old.horses !== val.horses) {
-            newToasts.push({ id: Math.random(), type: 'change', message: `🔄 Runner Changed: ${val.label}` });
+            newToasts.push({ id: Math.random(), type: 'change', message: `🔄 Runners ${old.horses} changed to ${val.horses}: ${val.label}` });
           }
         }
       });
@@ -215,7 +220,12 @@ function Tricasts() {
         if (!placedBets.has(val.raceKey)) return;
 
         if (!newMap.has(id)) {
-          newToasts.push({ id: Date.now() + Math.random(), type: 'removed', message: `❌ Removed/Finished: ${val.label}` });
+          const raceStillExists = races.some(r => `${r.time} ${r.place}` === val.raceKey);
+          if (raceStillExists) {
+            newToasts.push({ id: Date.now() + Math.random(), type: 'removed', message: `📉 Payout dropped below ${minPayout}/1: ${val.label}` });
+          } else {
+            newToasts.push({ id: Date.now() + Math.random(), type: 'removed', message: `🏁 Race Finished: ${val.label}` });
+          }
         }
       });
 
@@ -251,15 +261,20 @@ function Tricasts() {
       </div>
 
       <header className="tricasts-header">
-        <h1 onClick={handleOpenDatePicker} style={{ cursor: 'pointer' }} title="Click to change date">
-          {mode === 'tricast' ? 'Tricasts' : 'Forecasts'} for {displayDate} 📅
-        </h1>
-        <input 
-          type="date" 
-          ref={dateInputRef}
-          value={selectedDate} 
-          onChange={(e) => setSelectedDate(e.target.value)}
-          className="hidden-date-input"
+        <DatePicker
+          selected={dateObject}
+          onChange={(date) => {
+            if (date) {
+              const y = date.getFullYear();
+              const m = String(date.getMonth() + 1).padStart(2, '0');
+              const d = String(date.getDate()).padStart(2, '0');
+              setSelectedDate(`${y}-${m}-${d}`);
+            }
+          }}
+          customInput={<CustomDateInput />}
+          dateFormat="dd-MM-yyyy"
+          withPortal
+          portalId="root"
         />
         <div className="payout-filter-wrapper">
           <button 
