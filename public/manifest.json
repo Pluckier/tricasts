@@ -6,13 +6,7 @@
     {
       "src": "/tricasts/favicon.png",
       "type": "image/png",
-      "sizes": "192x192",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/tricasts/favicon.png",
-      "type": "image/png",
-      "sizes": "512x512",
+      "sizes": "any",
       "purpose": "any maskable"
     }
   ],
