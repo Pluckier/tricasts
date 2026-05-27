@@ -4,16 +4,16 @@
   "description": "A high-performance full-screen web experience.",
   "icons": [
     {
-      "src": "/tricasts/favicon.png",
+      "src": "/tricats/favicon.png",
       "type": "image/png",
-      "sizes": "32x32", 
-      "purpose": "any maskable"
+      "sizes": "32x32",
+      "purpose": "any"
     }
   ],
-  "start_url": "/tricasts/",
+  "start_url": ".tricats/",
   "background_color": "#121212",
   "theme_color": "#000000",
   "display": "fullscreen",
   "orientation": "landscape",
-  "id": "/tricasts/"
+  "id": "/tricats/"
 }
