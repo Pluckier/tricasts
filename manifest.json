@@ -6,7 +6,7 @@
     {
       "src": "/tricasts/favicon.png",
       "type": "image/png",
-      "sizes": "any",
+      "sizes": "32x32", 
       "purpose": "any maskable"
     }
   ],
