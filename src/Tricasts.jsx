@@ -202,9 +202,6 @@ function Tricasts() {
       const newToasts = [];
 
       newMap.forEach((val, id) => {
-        // Only notify if the user has ticked this specific strategy
-        if (!placedBets.has(id)) return;
-
         if (!oldMap.has(id)) {
           // Note: New races likely won't be ticked yet, but this handles strategy changes within a ticked race
           newToasts.push({ id: Date.now() + Math.random(), type: 'new', message: `✨ New Strategy: ${val.label} @ ${val.payout}/1` });
@@ -217,9 +214,6 @@ function Tricasts() {
       });
 
       oldMap.forEach((val, id) => {
-        // Only notify if the user has ticked this specific strategy
-        if (!placedBets.has(id)) return;
-
         if (!newMap.has(id)) {
           const raceStillExists = races.some(r => `${r.time} ${r.place}` === val.raceKey);
           if (raceStillExists) {
@@ -336,7 +330,7 @@ function Tricasts() {
                             className="bet-checkbox"
                             checked={placedBets.has(`${raceKey}-both`)}
                             onChange={() => toggleBet(`${raceKey}-both`)}
-                            title="Tick if you have a bet on this strategy to receive update notifications"
+                            title="Bet done?"
                           />
                           <h4 style={{ margin: 0 }}>Recent & Highest • {Math.round(race.recentP)}/1</h4>
                         </div>
@@ -365,7 +359,7 @@ function Tricasts() {
                             className="bet-checkbox"
                             checked={placedBets.has(`${raceKey}-recent`)}
                             onChange={() => toggleBet(`${raceKey}-recent`)}
-                            title="Tick if you have a bet on this strategy to receive update notifications"
+                            title="Bet done?"
                           />
                           <h4 style={{ margin: 0 }}>Recent • {Math.round(race.recentP)}/1</h4>
                         </div>
@@ -394,7 +388,7 @@ function Tricasts() {
                             className="bet-checkbox"
                             checked={placedBets.has(`${raceKey}-highest`)}
                             onChange={() => toggleBet(`${raceKey}-highest`)}
-                            title="Tick if you have a bet on this strategy to receive update notifications"
+                            title="Bet done?"
                           />
                           <h4 style={{ margin: 0 }}>Highest • {Math.round(race.highestP)}/1</h4>
                         </div>
