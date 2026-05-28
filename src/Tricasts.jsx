@@ -33,11 +33,11 @@ function Tricasts() {
     localStorage.setItem('tricast-bets', JSON.stringify([...placedBets]));
   }, [placedBets]);
 
-  const toggleBet = (raceKey) => {
+  const toggleBet = (strategyId) => {
     setPlacedBets(prev => {
       const next = new Set(prev);
-      if (next.has(raceKey)) next.delete(raceKey);
-      else next.add(raceKey);
+      if (next.has(strategyId)) next.delete(strategyId);
+      else next.add(strategyId);
       return next;
     });
   };
@@ -202,8 +202,8 @@ function Tricasts() {
       const newToasts = [];
 
       newMap.forEach((val, id) => {
-        // Only notify if the user has ticked this race
-        if (!placedBets.has(val.raceKey)) return;
+        // Only notify if the user has ticked this specific strategy
+        if (!placedBets.has(id)) return;
 
         if (!oldMap.has(id)) {
           // Note: New races likely won't be ticked yet, but this handles strategy changes within a ticked race
@@ -217,7 +217,8 @@ function Tricasts() {
       });
 
       oldMap.forEach((val, id) => {
-        if (!placedBets.has(val.raceKey)) return;
+        // Only notify if the user has ticked this specific strategy
+        if (!placedBets.has(id)) return;
 
         if (!newMap.has(id)) {
           const raceStillExists = races.some(r => `${r.time} ${r.place}` === val.raceKey);
@@ -323,20 +324,22 @@ function Tricasts() {
                   <div className="race-header-row">
                     <span className="race-time">{race.time}</span>
                     <span className="race-place">{race.place}</span>
-                    <input 
-                      type="checkbox" 
-                      className="bet-checkbox"
-                      checked={placedBets.has(raceKey)}
-                      onChange={() => toggleBet(raceKey)}
-                      title="Tick if you have a bet on this race to receive update notifications"
-                    />
                   </div>
                   <span className="race-detail">{race.detail}</span>
                   
                   <div className="tricast-selections">
                     {race.isSame && race.recentP >= minPayout && race.recentP > 0 ? (
                       <div className="strategy-section">
-                        <h4>Recent & Highest • {Math.round(race.recentP)}/1</h4>
+                        <div className="strategy-header" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <input 
+                            type="checkbox" 
+                            className="bet-checkbox"
+                            checked={placedBets.has(`${raceKey}-both`)}
+                            onChange={() => toggleBet(`${raceKey}-both`)}
+                            title="Tick if you have a bet on this strategy to receive update notifications"
+                          />
+                          <h4 style={{ margin: 0 }}>Recent & Highest • {Math.round(race.recentP)}/1</h4>
+                        </div>
                         {race.recentS.map((horse, hIdx) => {
                           const odds = horse.odds?.[horse.odds.length - 1];
                           const disp = odds === "null" || odds === "NR" ? "NR" : (odds || "x");
@@ -356,7 +359,16 @@ function Tricasts() {
                       <>
                         {race.recentP >= minPayout && race.recentP > 0 && (
                       <div className="strategy-section">
-                        <h4>Recent • {Math.round(race.recentP)}/1</h4>
+                        <div className="strategy-header" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <input 
+                            type="checkbox" 
+                            className="bet-checkbox"
+                            checked={placedBets.has(`${raceKey}-recent`)}
+                            onChange={() => toggleBet(`${raceKey}-recent`)}
+                            title="Tick if you have a bet on this strategy to receive update notifications"
+                          />
+                          <h4 style={{ margin: 0 }}>Recent • {Math.round(race.recentP)}/1</h4>
+                        </div>
                         {race.recentS.map((horse, hIdx) => {
                           const odds = horse.odds?.[horse.odds.length - 1];
                           const disp = odds === "null" || odds === "NR" ? "NR" : (odds || "x");
@@ -376,7 +388,16 @@ function Tricasts() {
 
                         {race.highestP >= minPayout && race.highestP > 0 && (
                       <div className={`strategy-section ${race.recentP >= minPayout && race.recentP > 0 ? 'strategy-divider' : ''}`}>
-                        <h4>Highest • {Math.round(race.highestP)}/1</h4>
+                        <div className="strategy-header" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <input 
+                            type="checkbox" 
+                            className="bet-checkbox"
+                            checked={placedBets.has(`${raceKey}-highest`)}
+                            onChange={() => toggleBet(`${raceKey}-highest`)}
+                            title="Tick if you have a bet on this strategy to receive update notifications"
+                          />
+                          <h4 style={{ margin: 0 }}>Highest • {Math.round(race.highestP)}/1</h4>
+                        </div>
                         {race.highestS.map((horse, hIdx) => {
                           const odds = horse.odds?.[horse.odds.length - 1];
                           const disp = odds === "null" || odds === "NR" ? "NR" : (odds || "x");
