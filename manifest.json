@@ -7,10 +7,10 @@
       "src": "/tricats/favicon.png",
       "type": "image/png",
       "sizes": "32x32",
-      "purpose": "any"
+      "purpose": "any maskable"
     }
   ],
-  "start_url": ".tricats/",
+  "start_url": "/tricats/",
   "background_color": "#121212",
   "theme_color": "#000000",
   "display": "fullscreen",
