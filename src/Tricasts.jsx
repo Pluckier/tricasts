@@ -363,7 +363,19 @@ function Tricasts() {
                           <h4 style={{ margin: 0 }}>Recent & Highest • {Math.round(race.recentP)}/1</h4>
                         </div>
                         {race.recentS.map((horse, hIdx) => {
-                          const odds = horse.odds?.[horse.odds.length - 1];
+                          const oddsArr = horse.odds || [];
+                          const odds = oddsArr[oddsArr.length - 1];
+                          const prevOdds = oddsArr.length > 1 ? oddsArr[oddsArr.length - 2] : null;
+                          
+                          let movement = null;
+                          const cur = parseFloat(odds);
+                          const prev = parseFloat(prevOdds);
+                          if (!isNaN(cur) && !isNaN(prev)) {
+                            if (cur > prev) movement = <span style={{ color: '#3b82f6', marginLeft: '4px', fontSize: '0.8em' }}>▼</span>;
+                            else if (cur < prev) movement = <span style={{ color: '#ef4444', marginLeft: '4px', fontSize: '0.8em' }}>▲</span>;
+                            else movement = <span style={{ color: 'var(--text-h)', marginLeft: '4px', fontSize: '0.8em', opacity: 0.5 }}>~</span>;
+                          }
+
                           const disp = odds === "null" || odds === "NR" ? "NR" : (odds || "x");
                           return (
                             <div key={hIdx} className="selection-row">
@@ -372,7 +384,7 @@ function Tricasts() {
                                 {horse.silks && <img src={horse.silks} alt="silks" className="selection-silks" />}
                                 <span className="selection-name">{horse.name}</span>
                               </div>
-                              <span className="selection-odds">{disp}</span>
+                              <span className="selection-odds">{disp}{movement}</span>
                             </div>
                           );
                         })}
@@ -392,7 +404,19 @@ function Tricasts() {
                           <h4 style={{ margin: 0 }}>Recent • {Math.round(race.recentP)}/1</h4>
                         </div>
                         {race.recentS.map((horse, hIdx) => {
-                          const odds = horse.odds?.[horse.odds.length - 1];
+                          const oddsArr = horse.odds || [];
+                          const odds = oddsArr[oddsArr.length - 1];
+                          const prevOdds = oddsArr.length > 1 ? oddsArr[oddsArr.length - 2] : null;
+                          
+                          let movement = null;
+                          const cur = parseFloat(odds);
+                          const prev = parseFloat(prevOdds);
+                          if (!isNaN(cur) && !isNaN(prev)) {
+                            if (cur > prev) movement = <span style={{ color: '#3b82f6', marginLeft: '4px', fontSize: '0.8em' }}>▼</span>;
+                            else if (cur < prev) movement = <span style={{ color: '#ef4444', marginLeft: '4px', fontSize: '0.8em' }}>▲</span>;
+                            else movement = <span style={{ color: 'var(--text-h)', marginLeft: '4px', fontSize: '0.8em', opacity: 0.5 }}>~</span>;
+                          }
+
                           const disp = odds === "null" || odds === "NR" ? "NR" : (odds || "x");
                           return (
                             <div key={hIdx} className="selection-row">
@@ -401,7 +425,7 @@ function Tricasts() {
                                 {horse.silks && <img src={horse.silks} alt="silks" className="selection-silks" />}
                                 <span className="selection-name">{horse.name}</span>
                               </div>
-                              <span className="selection-odds">{disp}</span>
+                              <span className="selection-odds">{disp}{movement}</span>
                             </div>
                           );
                         })}
@@ -421,7 +445,19 @@ function Tricasts() {
                           <h4 style={{ margin: 0 }}>Highest • {Math.round(race.highestP)}/1</h4>
                         </div>
                         {race.highestS.map((horse, hIdx) => {
-                          const odds = horse.odds?.[horse.odds.length - 1];
+                          const oddsArr = horse.odds || [];
+                          const odds = oddsArr[oddsArr.length - 1];
+                          const prevOdds = oddsArr.length > 1 ? oddsArr[oddsArr.length - 2] : null;
+                          
+                          let movement = null;
+                          const cur = parseFloat(odds);
+                          const prev = parseFloat(prevOdds);
+                          if (!isNaN(cur) && !isNaN(prev)) {
+                            if (cur > prev) movement = <span style={{ color: '#3b82f6', marginLeft: '4px', fontSize: '0.8em' }}>▼</span>;
+                            else if (cur < prev) movement = <span style={{ color: '#ef4444', marginLeft: '4px', fontSize: '0.8em' }}>▲</span>;
+                            else movement = <span style={{ color: 'var(--text-h)', marginLeft: '4px', fontSize: '0.8em', opacity: 0.5 }}>~</span>;
+                          }
+
                           const disp = odds === "null" || odds === "NR" ? "NR" : (odds || "x");
                           return (
                             <div key={hIdx} className="selection-row">
@@ -430,7 +466,7 @@ function Tricasts() {
                                 {horse.silks && <img src={horse.silks} alt="silks" className="selection-silks" />}
                                 <span className="selection-name">{horse.name}</span>
                               </div>
-                              <span className="selection-odds">{disp}</span>
+                              <span className="selection-odds">{disp}{movement}</span>
                             </div>
                           );
                         })}
