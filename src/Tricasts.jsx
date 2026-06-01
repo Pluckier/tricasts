@@ -221,12 +221,15 @@ function Tricasts() {
             const added = val.selections.filter(nh => !old.selections.some(oh => oh.name === nh.name));
             const removed = old.selections.filter(oh => !val.selections.some(nh => nh.name === oh.name));
 
-            const oldNos = old.selections.map(h => h.number).sort((a, b) => a - b).join(', ');
-            const newNos = val.selections.map(h => h.number).sort((a, b) => a - b).join(', ');
+            // Keep numbers in selection (rating) order rather than numerical order
+            const oldNos = old.selections.map(h => h.number).join(', ');
+            const newNos = val.selections.map(h => h.number).join(', ');
 
             let changeDetail = "";
             if (added.length > 0 && removed.length > 0) {
-              changeDetail = ` as ${added.map(h => h.name).join(', ')} replaced ${removed.map(h => h.name).join(', ')}`;
+              const addedDetail = added.map(h => `${h.number} ${h.name}`).join(', ');
+              const removedDetail = removed.map(h => `${h.number} ${h.name}`).join(', ');
+              changeDetail = ` as ${addedDetail} replaced ${removedDetail}`;
             }
 
             newToasts.push({
