@@ -99,11 +99,18 @@ function Tricasts() {
   }, [displayDate]);
   
   // Custom input component for react-datepicker to maintain the H1 styling
-  const CustomDateInput = forwardRef(({ value, onClick }, ref) => (
-    <h1 onClick={onClick} ref={ref} style={{ cursor: 'pointer' }} title="Click to change date">
-      {mode === 'tricast' ? 'Tricasts' : 'Forecasts'} for {value} 📅
-    </h1>
-  ));
+  const CustomDateInput = forwardRef(({ value, onClick }, ref) => {
+    return (
+      <h1 
+        onClick={onClick} 
+        ref={ref} 
+        style={{ cursor: 'pointer', fontSize: 'clamp(1.2rem, 6vw, 2rem)', lineHeight: '1.2' }} 
+        title="Click to change date"
+      >
+        {mode === 'tricast' ? 'Tricasts' : 'Forecasts'} for {value} 📅
+      </h1>
+    );
+  });
 
   // Convert YYYY-MM-DD string to Date object for react-datepicker
   const dateObject = useMemo(() => {
@@ -182,15 +189,15 @@ function Tricasts() {
           const raceKey = `${race.time} ${race.place}`;
           if (race.isSame && race.recentP >= minPayout && race.recentP > 0) {
             const id = `${raceKey}-both`;
-            map.set(id, { raceKey, label: `${raceKey} (Both)`, horses: race.recentS.map(h => h.name).sort().join(', '), payout: Math.round(race.recentP) });
+            map.set(id, { raceKey, label: `${raceKey} (Both)`, selections: race.recentS, payout: Math.round(race.recentP) });
           } else {
             if (race.recentP >= minPayout && race.recentP > 0) {
               const id = `${raceKey}-recent`;
-              map.set(id, { raceKey, label: `${raceKey} (Recent)`, horses: race.recentS.map(h => h.name).sort().join(', '), payout: Math.round(race.recentP) });
+              map.set(id, { raceKey, label: `${raceKey} (Recent)`, selections: race.recentS, payout: Math.round(race.recentP) });
             }
             if (race.highestP >= minPayout && race.highestP > 0) {
               const id = `${raceKey}-highest`;
-              map.set(id, { raceKey, label: `${raceKey} (Highest)`, horses: race.highestS.map(h => h.name).sort().join(', '), payout: Math.round(race.highestP) });
+              map.set(id, { raceKey, label: `${raceKey} (Highest)`, selections: race.highestS, payout: Math.round(race.highestP) });
             }
           }
         });
@@ -207,8 +214,26 @@ function Tricasts() {
           newToasts.push({ id: Date.now() + Math.random(), type: 'new', message: `✨ New Strategy: ${val.label} @ ${val.payout}/1` });
         } else {
           const old = oldMap.get(id);
-          if (old.horses !== val.horses) {
-            newToasts.push({ id: Math.random(), type: 'change', message: `🔄 Runners ${old.horses} changed to ${val.horses}: ${val.label}` });
+          const oldNames = old.selections.map(h => h.name).sort().join('|');
+          const newNames = val.selections.map(h => h.name).sort().join('|');
+
+          if (oldNames !== newNames) {
+            const added = val.selections.filter(nh => !old.selections.some(oh => oh.name === nh.name));
+            const removed = old.selections.filter(oh => !val.selections.some(nh => nh.name === oh.name));
+
+            const oldNos = old.selections.map(h => h.number).sort((a, b) => a - b).join(', ');
+            const newNos = val.selections.map(h => h.number).sort((a, b) => a - b).join(', ');
+
+            let changeDetail = "";
+            if (added.length > 0 && removed.length > 0) {
+              changeDetail = ` as ${added.map(h => h.name).join(', ')} replaced ${removed.map(h => h.name).join(', ')}`;
+            }
+
+            newToasts.push({
+              id: Math.random(),
+              type: 'change',
+              message: `🔄 ${oldNos} changed to ${newNos}${changeDetail} : ${val.label}`
+            });
           }
         }
       });
