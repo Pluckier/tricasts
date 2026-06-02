@@ -81,7 +81,13 @@ function Tricasts() {
       }
       setError(null);
       try {
-        const response = await fetch(`https://www.pluckier.co.uk/${displayDate}-races.json`);
+        // Using 'no-store' tells the browser to bypass its cache and fetch from the network.
+        // Alternatively, you could append ?t=${Date.now()} to the URL for a guaranteed unique request.
+        const response = await fetch(
+          `https://www.pluckier.co.uk/${displayDate}-races.json`, 
+          { cache: 'no-store' }
+        );
+
         if (!response.ok) throw new Error('No data found for this date');
         const data = await response.json();
         setRaces(data || []);
