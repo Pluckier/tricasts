@@ -42,14 +42,10 @@ function Tricasts() {
     });
   };
 
-  const [mode, setMode] = useState('tricast'); // 'tricast' or 'forecast'
+  const [mode, setMode] = useState('tricast'); // 'tricast' or 'forecast' (Combination)
 
-  // Filter state for minimum payout - steps change based on mode
-  const payoutSteps = useMemo(() => 
-    mode === 'tricast' 
-      ? [0, 50, 100, 250, 500, 1000] 
-      : [0, 10, 20, 50, 100, 250]
-  , [mode]);
+  // Filter state for minimum payout - thresholds for Tricast strategies
+  const payoutSteps = [0, 50, 100, 250, 500, 1000];
 
   const [payoutIndex, setPayoutIndex] = useState(0);
   const minPayout = payoutSteps[payoutIndex];
@@ -113,7 +109,7 @@ function Tricasts() {
         style={{ cursor: 'pointer', fontSize: 'clamp(1.2rem, 6vw, 2rem)', lineHeight: '1.2' }} 
         title="Click to change date"
       >
-        {mode === 'tricast' ? 'Tricasts' : 'Forecasts'} for {value} 📅
+        {mode === 'tricast' ? 'Tricasts' : 'Combination Tricasts'} for {value} 📅
       </h1>
     );
   });
@@ -147,22 +143,24 @@ function Tricasts() {
         return { ...horse, rating: score };
       });
 
-    return ratedHorses.sort((a, b) => b.rating - a.rating).slice(0, count);
+    const selected = ratedHorses.sort((a, b) => b.rating - a.rating).slice(0, count);
+    
+    return selected.sort((a, b) => {
+      const priceA = parseFloat(a.odds?.[a.odds.length - 1]) || 999;
+      const priceB = parseFloat(b.odds?.[b.odds.length - 1]) || 999;
+      return priceA - priceB;
+    });
   };
 
   const processedRaces = useMemo(() => {
-    const horseCount = mode === 'tricast' ? 3 : 2;
+    // Both modes now use top-3 (Tricast) strategy logic
+    const horseCount = 3;
     return races
       .filter(race => {
         const detail = (race.detail || '').toLowerCase();
         const runnerCount = race.horses?.length || 0;
-
-        if (mode === 'tricast') {
-          const isEligibleType = detail.includes('handicap') || detail.includes('class 1') || detail.includes('nursery');
-          return runnerCount >= 8 && isEligibleType;
-        }
-        
-        return runnerCount >= 2;
+        const isEligibleType = detail.includes('handicap') || detail.includes('class 1') || detail.includes('nursery');
+        return runnerCount >= 8 && isEligibleType;
       })
       .map(race => {
         const recentS = getSelections(race.horses, true, horseCount);
@@ -179,7 +177,21 @@ function Tricasts() {
         const isSame = recentS.length === horseCount && highestS.length === horseCount &&
           recentS.every(h => highestS.some(hh => hh.name === h.name));
 
-        return { ...race, recentS, recentP, highestS, highestP, isSame };
+
+        // Merge strategies for the combination mode (3-6 horses)
+        const combinedMap = new Map();
+        [...recentS, ...highestS].forEach(h => {
+          if (!combinedMap.has(h.name)) {
+            combinedMap.set(h.name, h);
+          }
+        });
+        const combinedS = Array.from(combinedMap.values()).sort((a, b) => {
+          const priceA = parseFloat(a.odds?.[a.odds.length - 1]) || 999;
+          const priceB = parseFloat(b.odds?.[b.odds.length - 1]) || 999;
+          return priceA - priceB;
+        });
+
+        return { ...race, recentS, recentP, highestS, highestP, combinedS, isSame };
       })
       .filter(race => race.recentP >= minPayout || race.highestP >= minPayout);
   }, [races, minPayout, mode]);
@@ -268,6 +280,11 @@ function Tricasts() {
   }, [races, processedRaces, mode, minPayout]);
 
   const tricastCount = useMemo(() => {
+    if (mode === 'forecast') {
+      // In combination mode, every eligible race counts as one single bet/strategy
+      return processedRaces.length;
+    }
+
     return processedRaces.reduce((acc, race) => {
       if (race.isSame) {
         return acc + (race.recentP >= minPayout && race.recentP > 0 ? 1 : 0);
@@ -277,6 +294,36 @@ function Tricasts() {
       return acc + (hasRecent ? 1 : 0) + (hasHighest ? 1 : 0);
     }, 0);
   }, [processedRaces, minPayout]);
+
+  const betBreakdown = useMemo(() => {
+    const breakdown = { total: 0, counts: {} };
+    processedRaces.forEach(race => {
+      if (mode === 'forecast') {
+        const n = race.combinedS.length;
+        const bets = n * (n - 1) * (n - 2);
+        breakdown.total += bets;
+        const label = `${n} horses`;
+        breakdown.counts[label] = (breakdown.counts[label] || 0) + 1;
+      } else {
+        // Individual mode: count strategies matching the payout filter
+        let activeStrategies = 0;
+        if (race.isSame) {
+          if (race.recentP >= minPayout && race.recentP > 0) activeStrategies++;
+        } else {
+          if (race.recentP >= minPayout && race.recentP > 0) activeStrategies++;
+          if (race.highestP >= minPayout && race.highestP > 0) activeStrategies++;
+        }
+        
+        if (activeStrategies > 0) {
+          const bets = activeStrategies * 6; // 3 horses = 6 bets
+          breakdown.total += bets;
+          const label = `3 horses`;
+          breakdown.counts[label] = (breakdown.counts[label] || 0) + activeStrategies;
+        }
+      }
+    });
+    return breakdown;
+  }, [processedRaces, mode, minPayout]);
 
   const renderContent = (auth = {}) => (
     <div className="tricasts-container">
@@ -310,7 +357,7 @@ function Tricasts() {
             onClick={() => setMode(prev => prev === 'tricast' ? 'forecast' : 'tricast')}
             className="filter-btn active"
           >
-            {mode === 'tricast' ? '🎯 Forecast' : '🎯 Tricast'}
+            {mode === 'tricast' ? '🎯 Combination' : '🎯 Individual'}
           </button>
 
           <TrackWorker />
@@ -356,7 +403,47 @@ function Tricasts() {
                   <span className="race-detail">{race.detail}</span>
                   
                   <div className="tricast-selections">
-                    {race.isSame && race.recentP >= minPayout && race.recentP > 0 ? (
+                    {mode === 'forecast' ? (
+                      <div className="strategy-section">
+                        <div className="strategy-header" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <input 
+                            type="checkbox" 
+                            className="bet-checkbox"
+                            checked={placedBets.has(`${raceKey}-comb`)}
+                            onChange={() => toggleBet(`${raceKey}-comb`)}
+                            title="Bet done?"
+                          />
+                          <h4 style={{ margin: 0 }}>Combination • {race.combinedS.length} Horses</h4>
+                        </div>
+                        {race.combinedS.map((horse, hIdx) => {
+                          const oddsArr = horse.odds || [];
+                          const odds = oddsArr[oddsArr.length - 1];
+                          const prevOdds = oddsArr.length > 1 ? oddsArr[oddsArr.length - 2] : null;
+
+                          let movement = null;
+                          const cur = parseFloat(odds);
+                          const prev = parseFloat(prevOdds);
+                          if (!isNaN(cur) && !isNaN(prev)) {
+                            if (cur > prev) movement = <span style={{ color: '#3b82f6', marginLeft: '4px', fontSize: '0.8em' }}>▼</span>;
+                            else if (cur < prev) movement = <span style={{ color: '#ef4444', marginLeft: '4px', fontSize: '0.8em' }}>▲</span>;
+                            else movement = <span style={{ color: 'var(--text-h)', marginLeft: '4px', fontSize: '0.8em', opacity: 0.5 }}>~</span>;
+                          }
+
+                          const disp = odds === "null" || odds === "NR" ? "NR" : (odds || "x");
+                          return (
+                            <div key={hIdx} className="selection-row">
+                              <div className="selection-name-container">
+                                <span className="selection-no">{horse.number}.</span>
+                                {horse.silks && <img src={horse.silks} alt="silks" className="selection-silks" />}
+                                <span className="selection-name">{horse.name}</span>
+                              </div>
+                              <span className="selection-odds">{disp}{movement}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      race.isSame && race.recentP >= minPayout && race.recentP > 0 ? (
                       <div className="strategy-section">
                         <div className="strategy-header" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <input 
@@ -478,8 +565,9 @@ function Tricasts() {
                         })}
                       </div>
                     )}
-                      </>
-                    )}
+                    </>
+                  )
+                )}
                   </div>
                 </div>
               );
@@ -487,6 +575,24 @@ function Tricasts() {
           </div>
         )}
         {!loading && !error && processedRaces.length === 0 && <p>No {mode} races found matching your criteria.</p>}
+
+        {!loading && processedRaces.length > 0 && (
+          <div className="bet-summary-report">
+            <h3 className="bet-summary-title">Betting Summary Report</h3>
+            <div className="bet-summary-grid">
+              {Object.entries(betBreakdown.counts).sort().map(([label, count]) => {
+                const n = parseInt(label, 10);
+                const betsPerRace = isNaN(n) ? 6 : (n * (n - 1) * (n - 2));
+                return (
+                  <div key={label} className="bet-summary-item">
+                    <strong>{count}</strong> {count === 1 ? 'bet' : 'bets'} of <strong>{label}</strong> ({count * betsPerRace} lines)
+                  </div>
+                );
+              })}
+            </div>
+            <p className="bet-summary-total">Total Lines Required: {betBreakdown.total}</p>
+          </div>
+        )}
       </main>
     </div>
   );

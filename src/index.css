@@ -409,3 +409,36 @@ code {
 .status-msg.error {
   color: #ef4444;
 }
+
+.bet-summary-report {
+  margin: 40px auto 60px;
+  padding: 25px;
+  border-top: 1px solid var(--border);
+  background: var(--accent-bg);
+  border-radius: 16px;
+  max-width: 600px;
+}
+
+.bet-summary-title {
+  margin: 0 0 15px 0;
+  color: var(--accent);
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.bet-summary-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.bet-summary-item {
+  font-size: 0.9rem;
+  padding: 4px 12px;
+  background: var(--bg);
+  border-radius: 20px;
+  border: 1px solid var(--border);
+}
