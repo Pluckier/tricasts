@@ -7,6 +7,20 @@ import 'react-datepicker/dist/react-datepicker.css';
 // 🟢 SET TO 'false' TO DISABLE AUTH GUARD
 const AUTH_ACTIVE = false;
 
+const HOT_TRAINERS = [
+  "A P O'Brien", "T D Easterby", "L Russell & M Scudamore",
+  "W P Mullins", "G Elliott", "R Hannon", "G P Cromwell",
+  "G & J Moore", "R A Fahey", "Ian Williams", "A W Carroll",
+  "K R Burke", "E Bolger", "James Owen", "J P O'Brien", "P Twomey",
+  "D Skelton", "P F Nicholls", "A M Balding", "W J Haggas", "N P Mulholland",
+  "J & T Gosden", "C Appleby", "R M Beckett", "C Johnston", "H De Bromhead",
+  "Gavin Cromwell", "Charlie Johnston", "Ralph Beckett", "John & Thady Gosden", 
+  "Neil Mulholland", "Andrew Balding", "Tony Carroll", "Dan Skelton", "Richard Hannon",
+  "Joseph Patrick O'Brien", "William Haggas", "Henry De Bromhead", "Gordon Elliott",
+  "Lucinda Russell & Michael Scudamore", "Tim Easterby", "Richard & Peter Fahey",
+  "Charlie Appleby", "Martin Keighley", "Ben Pauling"
+];
+
 function Tricasts() {
   const [selectedDate, setSelectedDate] = useState(() => {
     const now = new Date();
@@ -152,6 +166,62 @@ function Tricasts() {
     });
   };
 
+  /**
+   * Favoured Strategy: Shortest odds, Top peak rating, Top peak rating from HOT_TRAINER.
+   * Fallback: Best most recent performance.
+   */
+  const getFavouredSelections = (horses, count) => {
+    const activeRunners = (horses || []).filter(h => {
+      const lastOdd = h.odds?.[h.odds.length - 1];
+      return lastOdd !== "null" && lastOdd !== "NR";
+    });
+
+    if (activeRunners.length === 0) return [];
+
+    const selectedMap = new Map();
+    const getPeak = (h) => Math.max(...(h.past || []).map(p => parseFloat(p.name) || 0), 0);
+    const getRecent = (h) => (h.past && h.past.length > 0) ? (parseFloat(h.past[0].name) || 0) : 0;
+
+    // 1. Shortest odds runner (Favorite)
+    const favorite = [...activeRunners].sort((a, b) => {
+      const valA = parseFloat(a.odds?.[a.odds.length - 1]) || 999;
+      const valB = parseFloat(b.odds?.[b.odds.length - 1]) || 999;
+      return valA - valB;
+    })[0];
+    if (favorite) selectedMap.set(favorite.name, favorite);
+
+    // 2. Highest past race performance (Peak)
+    const peakHorse = [...activeRunners].sort((a, b) => getPeak(b) - getPeak(a))[0];
+    if (peakHorse) selectedMap.set(peakHorse.name, peakHorse);
+
+    // 3. Highest past performance with a HOT_TRAINER
+    const hotRunners = activeRunners.filter(h => 
+      HOT_TRAINERS.some(ht => h.trainer?.includes(ht))
+    );
+    if (hotRunners.length > 0) {
+      const hotPeakHorse = hotRunners.sort((a, b) => getPeak(b) - getPeak(a))[0];
+      if (hotPeakHorse) selectedMap.set(hotPeakHorse.name, hotPeakHorse);
+    }
+
+    // Fallback: Best most recent past race performance
+    if (selectedMap.size < count) {
+      const remaining = activeRunners
+        .filter(h => !selectedMap.has(h.name))
+        .sort((a, b) => getRecent(b) - getRecent(a));
+      
+      for (const h of remaining) {
+        if (selectedMap.size >= count) break;
+        selectedMap.set(h.name, h);
+      }
+    }
+
+    return Array.from(selectedMap.values()).slice(0, count).sort((a, b) => {
+      const priceA = parseFloat(a.odds?.[a.odds.length - 1]) || 999;
+      const priceB = parseFloat(b.odds?.[b.odds.length - 1]) || 999;
+      return priceA - priceB;
+    });
+  };
+
   const processedRaces = useMemo(() => {
     // Both modes now use top-3 (Tricast) strategy logic
     const horseCount = 3;
@@ -165,12 +235,16 @@ function Tricasts() {
       .map(race => {
         const recentS = getSelections(race.horses, true, horseCount);
         const highestS = getSelections(race.horses, false, horseCount);
+        const favouredS = getFavouredSelections(race.horses, horseCount);
         
         const recentP = recentS.length === horseCount 
           ? recentS.reduce((acc, h) => acc * (parseFloat(h.odds?.[h.odds.length - 1]) || 0), 1)
           : 0;
         const highestP = highestS.length === horseCount 
           ? highestS.reduce((acc, h) => acc * (parseFloat(h.odds?.[h.odds.length - 1]) || 0), 1)
+          : 0;
+        const favouredP = favouredS.length === horseCount 
+          ? favouredS.reduce((acc, h) => acc * (parseFloat(h.odds?.[h.odds.length - 1]) || 0), 1)
           : 0;
 
         // Check if both strategies picked the same set of horses
@@ -180,7 +254,7 @@ function Tricasts() {
 
         // Merge strategies for the combination mode (3-6 horses)
         const combinedMap = new Map();
-        [...recentS, ...highestS].forEach(h => {
+        [...recentS, ...highestS, ...favouredS].forEach(h => {
           if (!combinedMap.has(h.name)) {
             combinedMap.set(h.name, h);
           }
@@ -191,9 +265,9 @@ function Tricasts() {
           return priceA - priceB;
         });
 
-        return { ...race, recentS, recentP, highestS, highestP, combinedS, isSame };
+        return { ...race, recentS, recentP, highestS, highestP, favouredS, favouredP, combinedS, isSame };
       })
-      .filter(race => race.recentP >= minPayout || race.highestP >= minPayout);
+      .filter(race => race.recentP >= minPayout || race.highestP >= minPayout || race.favouredP >= minPayout);
   }, [races, minPayout, mode]);
 
   useEffect(() => {
@@ -216,6 +290,10 @@ function Tricasts() {
             if (race.highestP >= minPayout && race.highestP > 0) {
               const id = `${raceKey}-highest`;
               map.set(id, { raceKey, label: `${raceKey} (Highest)`, selections: race.highestS, payout: Math.round(race.highestP) });
+            }
+            if (race.favouredP >= minPayout && race.favouredP > 0) {
+              const id = `${raceKey}-favoured`;
+              map.set(id, { raceKey, label: `${raceKey} (Favoured)`, selections: race.favouredS, payout: Math.round(race.favouredP) });
             }
           }
         });
@@ -286,12 +364,15 @@ function Tricasts() {
     }
 
     return processedRaces.reduce((acc, race) => {
+      let count = 0;
       if (race.isSame) {
-        return acc + (race.recentP >= minPayout && race.recentP > 0 ? 1 : 0);
+        if (race.recentP >= minPayout && race.recentP > 0) count++;
+      } else {
+        if (race.recentP >= minPayout && race.recentP > 0) count++;
+        if (race.highestP >= minPayout && race.highestP > 0) count++;
       }
-      const hasRecent = race.recentP >= minPayout && race.recentP > 0;
-      const hasHighest = race.highestP >= minPayout && race.highestP > 0;
-      return acc + (hasRecent ? 1 : 0) + (hasHighest ? 1 : 0);
+      if (race.favouredP >= minPayout && race.favouredP > 0) count++;
+      return acc + count;
     }, 0);
   }, [processedRaces, minPayout]);
 
@@ -313,6 +394,7 @@ function Tricasts() {
           if (race.recentP >= minPayout && race.recentP > 0) activeStrategies++;
           if (race.highestP >= minPayout && race.highestP > 0) activeStrategies++;
         }
+        if (race.favouredP >= minPayout && race.favouredP > 0) activeStrategies++;
         
         if (activeStrategies > 0) {
           const bets = activeStrategies * 6; // 3 horses = 6 bets
@@ -443,7 +525,8 @@ function Tricasts() {
                         })}
                       </div>
                     ) : (
-                      race.isSame && race.recentP >= minPayout && race.recentP > 0 ? (
+                      <>
+                        {race.isSame && race.recentP >= minPayout && race.recentP > 0 ? (
                       <div className="strategy-section">
                         <div className="strategy-header" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <input 
@@ -565,8 +648,49 @@ function Tricasts() {
                         })}
                       </div>
                     )}
-                    </>
-                  )
+                      </>
+                    )}
+                    {race.favouredP >= minPayout && race.favouredP > 0 && (
+                      <div className={`strategy-section ${(race.recentP >= minPayout || race.highestP >= minPayout) ? 'strategy-divider' : ''}`}>
+                        <div className="strategy-header" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <input 
+                            type="checkbox" 
+                            className="bet-checkbox"
+                            checked={placedBets.has(`${raceKey}-favoured`)}
+                            onChange={() => toggleBet(`${raceKey}-favoured`)}
+                            title="Bet done?"
+                          />
+                          <h4 style={{ margin: 0 }}>Favoured • {Math.round(race.favouredP)}/1</h4>
+                        </div>
+                        {race.favouredS.map((horse, hIdx) => {
+                          const oddsArr = horse.odds || [];
+                          const odds = oddsArr[oddsArr.length - 1];
+                          const prevOdds = oddsArr.length > 1 ? oddsArr[oddsArr.length - 2] : null;
+                          
+                          let movement = null;
+                          const cur = parseFloat(odds);
+                          const prev = parseFloat(prevOdds);
+                          if (!isNaN(cur) && !isNaN(prev)) {
+                            if (cur > prev) movement = <span style={{ color: '#3b82f6', marginLeft: '4px', fontSize: '0.8em' }}>▼</span>;
+                            else if (cur < prev) movement = <span style={{ color: '#ef4444', marginLeft: '4px', fontSize: '0.8em' }}>▲</span>;
+                            else movement = <span style={{ color: 'var(--text-h)', marginLeft: '4px', fontSize: '0.8em', opacity: 0.5 }}>~</span>;
+                          }
+
+                          const disp = odds === "null" || odds === "NR" ? "NR" : (odds || "x");
+                          return (
+                            <div key={hIdx} className="selection-row">
+                              <div className="selection-name-container">
+                                <span className="selection-no">{horse.number}.</span>
+                                {horse.silks && <img src={horse.silks} alt="silks" className="selection-silks" />}
+                                <span className="selection-name">{horse.name}</span>
+                              </div>
+                              <span className="selection-odds">{disp}{movement}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
                 )}
                   </div>
                 </div>
