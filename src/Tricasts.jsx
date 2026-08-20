@@ -229,7 +229,7 @@ function Tricasts() {
       .filter(race => {
         const detail = (race.detail || '').toLowerCase();
         const runnerCount = race.horses?.length || 0;
-        const isEligibleType = detail.includes('handicap') || detail.includes('class 1') || detail.includes('nursery');
+        const isEligibleType = detail.includes('handicap') || detail.includes('class 1') || detail.includes('class 2') || detail.includes('nursery');
         return runnerCount >= 8 && isEligibleType;
       })
       .map(race => {
