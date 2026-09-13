@@ -57,7 +57,6 @@ function Tricasts() {
     });
   };
 
-  const [mode, setMode] = useState('tricast'); // 'tricast' or 'forecast' (Combination)
 
   // Filter state for minimum payout - thresholds for Tricast strategies
   const payoutSteps = [0, 50, 100, 250, 500, 1000];
@@ -124,7 +123,7 @@ function Tricasts() {
         style={{ cursor: 'pointer', fontSize: 'clamp(1.2rem, 6vw, 2rem)', lineHeight: '1.2' }}
         title="Click to change date"
       >
-        {mode === 'tricast' ? 'Tricasts' : 'Combination Tricasts'} for {value} 📅
+        Tricasts for {value} 📅
       </h1>
     );
   });
@@ -136,86 +135,78 @@ function Tricasts() {
     return new Date(y, m - 1, d);
   }, [selectedDate]);
 
-  const getSelections = (horses, useAvg, count) => {
-    const ratedHorses = (horses || [])
-      .filter(horse => {
-        const currentOdds = horse.odds?.[horse.odds.length - 1];
-        // Skip non-runners
-        return currentOdds !== "null" && currentOdds !== "NR";
-      })
-      .map(horse => {
-        const past = horse.past || [];
-        let score = 0;
-
-        if (useAvg) {
-          const lastThree = past.slice(0, 3);
-          score = lastThree.length > 0
-            ? lastThree.reduce((acc, r) => acc + (Number(r.name) || 0), 0) / lastThree.length
-            : 0;
-        } else {
-          score = past.length > 0 ? Math.max(...past.map(r => Number(r.name) || 0)) : 0;
-        }
-        return { ...horse, rating: score };
-      });
-
-    const selected = ratedHorses.sort((a, b) => b.rating - a.rating).slice(0, count);
-
-    return selected.sort((a, b) => {
-      const priceA = parseFloat(a.odds?.[a.odds.length - 1]) || 999;
-      const priceB = parseFloat(b.odds?.[b.odds.length - 1]) || 999;
-      return priceA - priceB;
-    });
-  };
-
-  /**
-   * Favoured Strategy: Shortest odds, Top peak rating, Top peak rating from HOT_TRAINER.
-   * Fallback: Best most recent performance.
-   */
   const getFavouredSelections = (horses, count) => {
     const activeRunners = (horses || []).filter(h => {
       const lastOdd = h.odds?.[h.odds.length - 1];
-      return lastOdd !== "null" && lastOdd !== "NR";
+
+      // 1. Skip non-runners or missing data
+      if (lastOdd === "null" || lastOdd === "NR" || !lastOdd) return false;
+
+      // 2. Convert fractional odds (like "100/1") to a number
+      let price = parseFloat(lastOdd);
+      if (lastOdd.includes('/')) {
+        const [num, den] = lastOdd.split('/').map(Number);
+        price = num / den;
+      }
+
+      // 3. Only keep horses with odds of 50/1 or lower
+      return price <= 50;
     });
 
     if (activeRunners.length === 0) return [];
 
     const selectedMap = new Map();
+
+    // Scoring and identification helpers
     const getPeak = (h) => Math.max(...(h.past || []).map(p => parseFloat(p.name) || 0), 0);
     const getRecent = (h) => (h.past && h.past.length > 0) ? (parseFloat(h.past[0].name) || 0) : 0;
 
-    // 1. Shortest odds runner (Favorite)
-    const favorite = [...activeRunners].sort((a, b) => {
-      const valA = parseFloat(a.odds?.[a.odds.length - 1]) || 999;
-      const valB = parseFloat(b.odds?.[b.odds.length - 1]) || 999;
-      return valA - valB;
-    })[0];
-    if (favorite) selectedMap.set(favorite.name, favorite);
+    // Cleanly convert racecard numbers (e.g. "12", 5) to actual integers for sorting
+    const getRacecardNo = (h) => parseInt(h.number, 10) || 0;
 
-    // 2. Highest past race performance (Peak)
+    // --- SEAT 1: The Lifetime Peak Performer ---
     const peakHorse = [...activeRunners].sort((a, b) => getPeak(b) - getPeak(a))[0];
-    if (peakHorse) selectedMap.set(peakHorse.name, peakHorse);
+    if (peakHorse) {
+      selectedMap.set(peakHorse.name, peakHorse);
+    }
 
-    // 3. Highest past performance with a HOT_TRAINER
+    // --- SEAT 2: The Best Most Recent Form (past[0]) ---
+    const recentHorse = [...activeRunners]
+      .filter(h => !selectedMap.has(h.name)) // Don't pick the peak horse again
+      .sort((a, b) => getRecent(b) - getRecent(a))[0];
+    if (recentHorse) {
+      selectedMap.set(recentHorse.name, recentHorse);
+    }
+
+    // --- SEAT 3: Hot Trainer Horse with Highest Racecard Number ---
     const hotRunners = activeRunners.filter(h =>
       HOT_TRAINERS.some(ht => h.trainer?.includes(ht))
     );
+
     if (hotRunners.length > 0) {
-      const hotPeakHorse = hotRunners.sort((a, b) => getPeak(b) - getPeak(a))[0];
-      if (hotPeakHorse) selectedMap.set(hotPeakHorse.name, hotPeakHorse);
+      // Sort strictly by racecard number descending (highest number first)
+      const hotCardHorse = hotRunners
+        .filter(h => !selectedMap.has(h.name))
+        .sort((a, b) => getRacecardNo(b) - getRacecardNo(a))[0];
+
+      if (hotCardHorse) {
+        selectedMap.set(hotCardHorse.name, hotCardHorse);
+      }
     }
 
-    // Fallback: Best most recent past race performance
+    // --- FILL DECK: Top up to max count (3) using Highest Ever Past Run Descending ---
     if (selectedMap.size < count) {
-      const remaining = activeRunners
+      const backupPool = [...activeRunners]
         .filter(h => !selectedMap.has(h.name))
-        .sort((a, b) => getRecent(b) - getRecent(a));
+        .sort((a, b) => getPeak(b) - getPeak(a));
 
-      for (const h of remaining) {
+      for (const h of backupPool) {
         if (selectedMap.size >= count) break;
         selectedMap.set(h.name, h);
       }
     }
 
+    // --- FINAL DISPLAY SORT: Shortest odds first ---
     return Array.from(selectedMap.values()).slice(0, count).sort((a, b) => {
       const priceA = parseFloat(a.odds?.[a.odds.length - 1]) || 999;
       const priceB = parseFloat(b.odds?.[b.odds.length - 1]) || 999;
@@ -223,8 +214,10 @@ function Tricasts() {
     });
   };
 
+
+
+
   const processedRaces = useMemo(() => {
-    // Both modes now use top-3 (Tricast) strategy logic
     const horseCount = 3;
     return races
       .filter(race => {
@@ -234,42 +227,14 @@ function Tricasts() {
         return runnerCount >= 8 && isEligibleType;
       })
       .map(race => {
-        const recentS = getSelections(race.horses, true, horseCount);
-        const highestS = getSelections(race.horses, false, horseCount);
         const favouredS = getFavouredSelections(race.horses, horseCount);
-
-        const recentP = recentS.length === horseCount
-          ? recentS.reduce((acc, h) => acc * (parseFloat(h.odds?.[h.odds.length - 1]) || 0), 1)
-          : 0;
-        const highestP = highestS.length === horseCount
-          ? highestS.reduce((acc, h) => acc * (parseFloat(h.odds?.[h.odds.length - 1]) || 0), 1)
-          : 0;
         const favouredP = favouredS.length === horseCount
           ? favouredS.reduce((acc, h) => acc * (parseFloat(h.odds?.[h.odds.length - 1]) || 0), 1)
           : 0;
-
-        // Check if both strategies picked the same set of horses
-        const isSame = recentS.length === horseCount && highestS.length === horseCount &&
-          recentS.every(h => highestS.some(hh => hh.name === h.name));
-
-
-        // Merge strategies for the combination mode (3-6 horses)
-        const combinedMap = new Map();
-        [...recentS, ...highestS, ...favouredS].forEach(h => {
-          if (!combinedMap.has(h.name)) {
-            combinedMap.set(h.name, h);
-          }
-        });
-        const combinedS = Array.from(combinedMap.values()).sort((a, b) => {
-          const priceA = parseFloat(a.odds?.[a.odds.length - 1]) || 999;
-          const priceB = parseFloat(b.odds?.[b.odds.length - 1]) || 999;
-          return priceA - priceB;
-        });
-
-        return { ...race, recentS, recentP, highestS, highestP, favouredS, favouredP, combinedS, isSame };
+        return { ...race, favouredS, favouredP };
       })
-      .filter(race => race.recentP >= minPayout || race.highestP >= minPayout || race.favouredP >= minPayout);
-  }, [races, minPayout, mode]);
+      .filter(race => race.favouredP >= minPayout);
+  }, [races, minPayout]);
 
   useEffect(() => {
     // Only run comparison if we already had data (not initial load)
@@ -280,22 +245,9 @@ function Tricasts() {
         const map = new Map();
         processed.forEach(race => {
           const raceKey = `${race.time} ${race.place}`;
-          if (race.isSame && race.recentP >= minPayout && race.recentP > 0) {
-            const id = `${raceKey}-both`;
-            map.set(id, { raceKey, label: `${raceKey} (Both)`, selections: race.recentS, payout: Math.round(race.recentP) });
-          } else {
-            if (race.recentP >= minPayout && race.recentP > 0) {
-              const id = `${raceKey}-recent`;
-              map.set(id, { raceKey, label: `${raceKey} (Recent)`, selections: race.recentS, payout: Math.round(race.recentP) });
-            }
-            if (race.highestP >= minPayout && race.highestP > 0) {
-              const id = `${raceKey}-highest`;
-              map.set(id, { raceKey, label: `${raceKey} (Highest)`, selections: race.highestS, payout: Math.round(race.highestP) });
-            }
-            if (race.favouredP >= minPayout && race.favouredP > 0) {
-              const id = `${raceKey}-favoured`;
-              map.set(id, { raceKey, label: `${raceKey} (Favoured)`, selections: race.favouredS, payout: Math.round(race.favouredP) });
-            }
+          if (race.favouredP >= minPayout && race.favouredP > 0) {
+            const id = `${raceKey}-favoured`;
+            map.set(id, { raceKey, label: `${raceKey} (Favoured)`, selections: race.favouredS, payout: Math.round(race.favouredP) });
           }
         });
         return map;
@@ -307,7 +259,6 @@ function Tricasts() {
 
       newMap.forEach((val, id) => {
         if (!oldMap.has(id)) {
-          // Note: New races likely won't be ticked yet, but this handles strategy changes within a ticked race
           newToasts.push({ id: Date.now() + Math.random(), type: 'new', message: `✨ New Strategy: ${val.label} @ ${val.payout}/1` });
         } else {
           const old = oldMap.get(id);
@@ -318,7 +269,6 @@ function Tricasts() {
             const added = val.selections.filter(nh => !old.selections.some(oh => oh.name === nh.name));
             const removed = old.selections.filter(oh => !val.selections.some(nh => nh.name === oh.name));
 
-            // Keep numbers in selection (rating) order rather than numerical order
             const oldNos = old.selections.map(h => h.number).join(', ');
             const newNos = val.selections.map(h => h.number).join(', ');
 
@@ -356,57 +306,24 @@ function Tricasts() {
 
     lastDataRef.current = races;
     prevProcessedRef.current = processedRaces;
-  }, [races, processedRaces, mode, minPayout]);
+  }, [races, processedRaces, minPayout]);
 
-  const tricastCount = useMemo(() => {
-    if (mode === 'forecast') {
-      // In combination mode, every eligible race counts as one single bet/strategy
-      return processedRaces.length;
-    }
-
-    return processedRaces.reduce((acc, race) => {
-      let count = 0;
-      if (race.isSame) {
-        if (race.recentP >= minPayout && race.recentP > 0) count++;
-      } else {
-        if (race.recentP >= minPayout && race.recentP > 0) count++;
-        if (race.highestP >= minPayout && race.highestP > 0) count++;
-      }
-      if (race.favouredP >= minPayout && race.favouredP > 0) count++;
-      return acc + count;
-    }, 0);
-  }, [processedRaces, minPayout]);
+  const tricastCount = useMemo(() => processedRaces.length, [processedRaces]);
 
   const betBreakdown = useMemo(() => {
     const breakdown = { total: 0, counts: {} };
     processedRaces.forEach(race => {
-      if (mode === 'forecast') {
-        const n = race.combinedS.length;
-        const bets = n * (n - 1) * (n - 2);
-        breakdown.total += bets;
-        const label = `${n} horses`;
-        breakdown.counts[label] = (breakdown.counts[label] || 0) + 1;
-      } else {
-        // Individual mode: count strategies matching the payout filter
-        let activeStrategies = 0;
-        if (race.isSame) {
-          if (race.recentP >= minPayout && race.recentP > 0) activeStrategies++;
-        } else {
-          if (race.recentP >= minPayout && race.recentP > 0) activeStrategies++;
-          if (race.highestP >= minPayout && race.highestP > 0) activeStrategies++;
-        }
-        if (race.favouredP >= minPayout && race.favouredP > 0) activeStrategies++;
-
-        if (activeStrategies > 0) {
-          const bets = activeStrategies * 6; // 3 horses = 6 bets
-          breakdown.total += bets;
-          const label = `3 horses`;
-          breakdown.counts[label] = (breakdown.counts[label] || 0) + activeStrategies;
-        }
+      if (race.favouredP >= minPayout && race.favouredP > 0) {
+        breakdown.total += 6; // 3 horses = 6 bets
+        breakdown.counts['3 horses'] = (breakdown.counts['3 horses'] || 0) + 1;
       }
     });
     return breakdown;
-  }, [processedRaces, mode, minPayout]);
+  }, [processedRaces, minPayout]);
+
+
+
+
 
   const renderContent = (auth = {}) => (
     <div className="tricasts-container">
@@ -436,12 +353,6 @@ function Tricasts() {
           portalId="root"
         />
         <div className="payout-filter-wrapper">
-          <button
-            onClick={() => setMode(prev => prev === 'tricast' ? 'forecast' : 'tricast')}
-            className="filter-btn active"
-          >
-            {mode === 'tricast' ? '🎯 Combination' : '🎯 Individual'}
-          </button>
 
           <TrackWorker />
 
@@ -486,220 +397,51 @@ function Tricasts() {
                   <span className="race-detail">{race.detail}</span>
 
                   <div className="tricast-selections">
-                    {mode === 'forecast' ? (
-                      <div className="strategy-section">
-                        <div className="strategy-header" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <input
-                            type="checkbox"
-                            className="bet-checkbox"
-                            checked={placedBets.has(`${raceKey}-comb`)}
-                            onChange={() => toggleBet(`${raceKey}-comb`)}
-                            title="Bet done?"
-                          />
-                          <h4 style={{ margin: 0 }}>Combination • {race.combinedS.length} Horses</h4>
-                        </div>
-                        {race.combinedS.map((horse, hIdx) => {
-                          const oddsArr = horse.odds || [];
-                          const odds = oddsArr[oddsArr.length - 1];
-                          const prevOdds = oddsArr.length > 1 ? oddsArr[oddsArr.length - 2] : null;
-
-                          let movement = null;
-                          const cur = parseFloat(odds);
-                          const prev = parseFloat(prevOdds);
-                          if (!isNaN(cur) && !isNaN(prev)) {
-                            if (cur > prev) movement = <span style={{ color: '#3b82f6', marginLeft: '4px', fontSize: '0.8em' }}>▼</span>;
-                            else if (cur < prev) movement = <span style={{ color: '#ef4444', marginLeft: '4px', fontSize: '0.8em' }}>▲</span>;
-                            else movement = <span style={{ color: 'var(--text-h)', marginLeft: '4px', fontSize: '0.8em', opacity: 0.5 }}>~</span>;
-                          }
-
-                          const disp = odds === "null" || odds === "NR" ? "NR" : (odds || "x");
-                          return (
-                            <div key={hIdx} className="selection-row">
-                              <div className="selection-name-container">
-                                <span className="selection-no">{horse.number}.</span>
-                                {horse.silks && <img src={horse.silks} alt="silks" className="selection-silks" />}
-                                <span className="selection-name">{horse.name}</span>
-                              </div>
-                              <span className="selection-odds">{disp}{movement}</span>
-                            </div>
-                          );
-                        })}
+                    <div className="strategy-section">
+                      <div className="strategy-header" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input
+                          type="checkbox"
+                          className="bet-checkbox"
+                          checked={placedBets.has(`${raceKey}-favoured`)}
+                          onChange={() => toggleBet(`${raceKey}-favoured`)}
+                          title="Bet done?"
+                        />
+                        <h4 style={{ margin: 0 }}>Favoured • {Math.round(race.favouredP)}/1</h4>
                       </div>
-                    ) : (
-                      <>
-                        {race.isSame && race.recentP >= minPayout && race.recentP > 0 ? (
-                          <div className="strategy-section">
-                            <div className="strategy-header" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <input
-                                type="checkbox"
-                                className="bet-checkbox"
-                                checked={placedBets.has(`${raceKey}-both`)}
-                                onChange={() => toggleBet(`${raceKey}-both`)}
-                                title="Bet done?"
-                              />
-                              <h4 style={{ margin: 0 }}>Recent & Highest • {Math.round(race.recentP)}/1</h4>
+                      {race.favouredS.map((horse, hIdx) => {
+                        const oddsArr = horse.odds || [];
+                        const odds = oddsArr[oddsArr.length - 1];
+                        const prevOdds = oddsArr.length > 1 ? oddsArr[oddsArr.length - 2] : null;
+
+                        let movement = null;
+                        const cur = parseFloat(odds);
+                        const prev = parseFloat(prevOdds);
+                        if (!isNaN(cur) && !isNaN(prev)) {
+                          if (cur > prev) movement = <span style={{ color: '#3b82f6', marginLeft: '4px', fontSize: '0.8em' }}>▼</span>;
+                          else if (cur < prev) movement = <span style={{ color: '#ef4444', marginLeft: '4px', fontSize: '0.8em' }}>▲</span>;
+                          else movement = <span style={{ color: 'var(--text-h)', marginLeft: '4px', fontSize: '0.8em', opacity: 0.5 }}>~</span>;
+                        }
+
+                        const disp = odds === "null" || odds === "NR" ? "NR" : (odds || "x");
+                        return (
+                          <div key={hIdx} className="selection-row">
+                            <div className="selection-name-container">
+                              <span className="selection-no">{horse.number}.</span>
+                              {horse.silks && <img src={horse.silks} alt="silks" className="selection-silks" />}
+                              <span className="selection-name">{horse.name}</span>
                             </div>
-                            {race.recentS.map((horse, hIdx) => {
-                              const oddsArr = horse.odds || [];
-                              const odds = oddsArr[oddsArr.length - 1];
-                              const prevOdds = oddsArr.length > 1 ? oddsArr[oddsArr.length - 2] : null;
-
-                              let movement = null;
-                              const cur = parseFloat(odds);
-                              const prev = parseFloat(prevOdds);
-                              if (!isNaN(cur) && !isNaN(prev)) {
-                                if (cur > prev) movement = <span style={{ color: '#3b82f6', marginLeft: '4px', fontSize: '0.8em' }}>▼</span>;
-                                else if (cur < prev) movement = <span style={{ color: '#ef4444', marginLeft: '4px', fontSize: '0.8em' }}>▲</span>;
-                                else movement = <span style={{ color: 'var(--text-h)', marginLeft: '4px', fontSize: '0.8em', opacity: 0.5 }}>~</span>;
-                              }
-
-                              const disp = odds === "null" || odds === "NR" ? "NR" : (odds || "x");
-                              return (
-                                <div key={hIdx} className="selection-row">
-                                  <div className="selection-name-container">
-                                    <span className="selection-no">{horse.number}.</span>
-                                    {horse.silks && <img src={horse.silks} alt="silks" className="selection-silks" />}
-                                    <span className="selection-name">{horse.name}</span>
-                                  </div>
-                                  <span className="selection-odds">{disp}{movement}</span>
-                                </div>
-                              );
-                            })}
+                            <span className="selection-odds">{disp}{movement}</span>
                           </div>
-                        ) : (
-                          <>
-                            {race.recentP >= minPayout && race.recentP > 0 && (
-                              <div className="strategy-section">
-                                <div className="strategy-header" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <input
-                                    type="checkbox"
-                                    className="bet-checkbox"
-                                    checked={placedBets.has(`${raceKey}-recent`)}
-                                    onChange={() => toggleBet(`${raceKey}-recent`)}
-                                    title="Bet done?"
-                                  />
-                                  <h4 style={{ margin: 0 }}>Recent • {Math.round(race.recentP)}/1</h4>
-                                </div>
-                                {race.recentS.map((horse, hIdx) => {
-                                  const oddsArr = horse.odds || [];
-                                  const odds = oddsArr[oddsArr.length - 1];
-                                  const prevOdds = oddsArr.length > 1 ? oddsArr[oddsArr.length - 2] : null;
-
-                                  let movement = null;
-                                  const cur = parseFloat(odds);
-                                  const prev = parseFloat(prevOdds);
-                                  if (!isNaN(cur) && !isNaN(prev)) {
-                                    if (cur > prev) movement = <span style={{ color: '#3b82f6', marginLeft: '4px', fontSize: '0.8em' }}>▼</span>;
-                                    else if (cur < prev) movement = <span style={{ color: '#ef4444', marginLeft: '4px', fontSize: '0.8em' }}>▲</span>;
-                                    else movement = <span style={{ color: 'var(--text-h)', marginLeft: '4px', fontSize: '0.8em', opacity: 0.5 }}>~</span>;
-                                  }
-
-                                  const disp = odds === "null" || odds === "NR" ? "NR" : (odds || "x");
-                                  return (
-                                    <div key={hIdx} className="selection-row">
-                                      <div className="selection-name-container">
-                                        <span className="selection-no">{horse.number}.</span>
-                                        {horse.silks && <img src={horse.silks} alt="silks" className="selection-silks" />}
-                                        <span className="selection-name">{horse.name}</span>
-                                      </div>
-                                      <span className="selection-odds">{disp}{movement}</span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-
-                            {race.highestP >= minPayout && race.highestP > 0 && (
-                              <div className={`strategy-section ${race.recentP >= minPayout && race.recentP > 0 ? 'strategy-divider' : ''}`}>
-                                <div className="strategy-header" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <input
-                                    type="checkbox"
-                                    className="bet-checkbox"
-                                    checked={placedBets.has(`${raceKey}-highest`)}
-                                    onChange={() => toggleBet(`${raceKey}-highest`)}
-                                    title="Bet done?"
-                                  />
-                                  <h4 style={{ margin: 0 }}>Highest • {Math.round(race.highestP)}/1</h4>
-                                </div>
-                                {race.highestS.map((horse, hIdx) => {
-                                  const oddsArr = horse.odds || [];
-                                  const odds = oddsArr[oddsArr.length - 1];
-                                  const prevOdds = oddsArr.length > 1 ? oddsArr[oddsArr.length - 2] : null;
-
-                                  let movement = null;
-                                  const cur = parseFloat(odds);
-                                  const prev = parseFloat(prevOdds);
-                                  if (!isNaN(cur) && !isNaN(prev)) {
-                                    if (cur > prev) movement = <span style={{ color: '#3b82f6', marginLeft: '4px', fontSize: '0.8em' }}>▼</span>;
-                                    else if (cur < prev) movement = <span style={{ color: '#ef4444', marginLeft: '4px', fontSize: '0.8em' }}>▲</span>;
-                                    else movement = <span style={{ color: 'var(--text-h)', marginLeft: '4px', fontSize: '0.8em', opacity: 0.5 }}>~</span>;
-                                  }
-
-                                  const disp = odds === "null" || odds === "NR" ? "NR" : (odds || "x");
-                                  return (
-                                    <div key={hIdx} className="selection-row">
-                                      <div className="selection-name-container">
-                                        <span className="selection-no">{horse.number}.</span>
-                                        {horse.silks && <img src={horse.silks} alt="silks" className="selection-silks" />}
-                                        <span className="selection-name">{horse.name}</span>
-                                      </div>
-                                      <span className="selection-odds">{disp}{movement}</span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </>
-                        )}
-                        {race.favouredP >= minPayout && race.favouredP > 0 && (
-                          <div className={`strategy-section ${(race.recentP >= minPayout || race.highestP >= minPayout) ? 'strategy-divider' : ''}`}>
-                            <div className="strategy-header" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <input
-                                type="checkbox"
-                                className="bet-checkbox"
-                                checked={placedBets.has(`${raceKey}-favoured`)}
-                                onChange={() => toggleBet(`${raceKey}-favoured`)}
-                                title="Bet done?"
-                              />
-                              <h4 style={{ margin: 0 }}>Favoured • {Math.round(race.favouredP)}/1</h4>
-                            </div>
-                            {race.favouredS.map((horse, hIdx) => {
-                              const oddsArr = horse.odds || [];
-                              const odds = oddsArr[oddsArr.length - 1];
-                              const prevOdds = oddsArr.length > 1 ? oddsArr[oddsArr.length - 2] : null;
-
-                              let movement = null;
-                              const cur = parseFloat(odds);
-                              const prev = parseFloat(prevOdds);
-                              if (!isNaN(cur) && !isNaN(prev)) {
-                                if (cur > prev) movement = <span style={{ color: '#3b82f6', marginLeft: '4px', fontSize: '0.8em' }}>▼</span>;
-                                else if (cur < prev) movement = <span style={{ color: '#ef4444', marginLeft: '4px', fontSize: '0.8em' }}>▲</span>;
-                                else movement = <span style={{ color: 'var(--text-h)', marginLeft: '4px', fontSize: '0.8em', opacity: 0.5 }}>~</span>;
-                              }
-
-                              const disp = odds === "null" || odds === "NR" ? "NR" : (odds || "x");
-                              return (
-                                <div key={hIdx} className="selection-row">
-                                  <div className="selection-name-container">
-                                    <span className="selection-no">{horse.number}.</span>
-                                    {horse.silks && <img src={horse.silks} alt="silks" className="selection-silks" />}
-                                    <span className="selection-name">{horse.name}</span>
-                                  </div>
-                                  <span className="selection-odds">{disp}{movement}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </>
-                    )}
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               );
             })}
           </div>
         )}
-        {!loading && !error && processedRaces.length === 0 && <p>No {mode} races found matching your criteria.</p>}
+        {!loading && !error && processedRaces.length === 0 && <p>No races found matching your criteria.</p>}
 
         {!loading && processedRaces.length > 0 && (
           <div className="bet-summary-report">
