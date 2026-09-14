@@ -135,6 +135,11 @@ function Tricasts() {
     return new Date(y, m - 1, d);
   }, [selectedDate]);
 
+
+
+
+
+
   const getFavouredSelections = (horses, count) => {
     const activeRunners = (horses || []).filter(h => {
       const lastOdd = h.odds?.[h.odds.length - 1];
@@ -142,7 +147,7 @@ function Tricasts() {
       // 1. Skip non-runners or missing data
       if (lastOdd === "null" || lastOdd === "NR" || !lastOdd) return false;
 
-      // 2. Convert fractional odds (like "100/1") to a number
+      // 2. Convert fractional odds (like "100/1") to a decimal number
       let price = parseFloat(lastOdd);
       if (lastOdd.includes('/')) {
         const [num, den] = lastOdd.split('/').map(Number);
@@ -161,37 +166,39 @@ function Tricasts() {
     const getPeak = (h) => Math.max(...(h.past || []).map(p => parseFloat(p.name) || 0), 0);
     const getRecent = (h) => (h.past && h.past.length > 0) ? (parseFloat(h.past[0].name) || 0) : 0;
 
-    // Cleanly convert racecard numbers (e.g. "12", 5) to actual integers for sorting
-    const getRacecardNo = (h) => parseInt(h.number, 10) || 0;
+    // New Helper: Calculates average of the last 3 runs
+    const getAvgThree = (h) => {
+      if (!h.past || h.past.length < 3) return 0;
+      const lastThree = h.past.slice(0, 3);
+      return lastThree.reduce((acc, r) => acc + (parseFloat(r.name) || 0), 0) / 3;
+    };
 
     // --- SEAT 1: The Lifetime Peak Performer ---
-    const peakHorse = [...activeRunners].sort((a, b) => getPeak(b) - getPeak(a))[0];
-    if (peakHorse) {
-      selectedMap.set(peakHorse.name, peakHorse);
+    const sortedByPeak = [...activeRunners].sort((a, b) => getPeak(b) - getPeak(a));
+    if (sortedByPeak.length > 0) {
+      selectedMap.set(sortedByPeak[0].name, sortedByPeak[0]);
     }
 
     // --- SEAT 2: The Best Most Recent Form (past[0]) ---
-    const recentHorse = [...activeRunners]
-      .filter(h => !selectedMap.has(h.name)) // Don't pick the peak horse again
-      .sort((a, b) => getRecent(b) - getRecent(a))[0];
-    if (recentHorse) {
-      selectedMap.set(recentHorse.name, recentHorse);
+    const sortedByRecent = [...activeRunners]
+      .filter(h => !selectedMap.has(h.name)) // Skip the horse chosen in Seat 1
+      .sort((a, b) => getRecent(b) - getRecent(a));
+
+    if (sortedByRecent.length > 0) {
+      selectedMap.set(sortedByRecent[0].name, sortedByRecent[0]);
     }
 
-    // --- SEAT 3: Hot Trainer Horse with Highest Racecard Number ---
+    // --- SEAT 3: Hot Trainer Horse with Highest Average Over Last 3 Runs ---
     const hotRunners = activeRunners.filter(h =>
-      HOT_TRAINERS.some(ht => h.trainer?.includes(ht))
+      HOT_TRAINERS.some(ht => h.trainer?.includes(ht)) && h.past && h.past.length >= 3
     );
 
-    if (hotRunners.length > 0) {
-      // Sort strictly by racecard number descending (highest number first)
-      const hotCardHorse = hotRunners
-        .filter(h => !selectedMap.has(h.name))
-        .sort((a, b) => getRacecardNo(b) - getRacecardNo(a))[0];
+    const sortedHotAvg = hotRunners
+      .filter(h => !selectedMap.has(h.name)) // Skip if already taken in Seat 1 or 2
+      .sort((a, b) => getAvgThree(b) - getAvgThree(a));
 
-      if (hotCardHorse) {
-        selectedMap.set(hotCardHorse.name, hotCardHorse);
-      }
+    if (sortedHotAvg.length > 0) {
+      selectedMap.set(sortedHotAvg[0].name, sortedHotAvg[0]);
     }
 
     // --- FILL DECK: Top up to max count (3) using Highest Ever Past Run Descending ---
@@ -213,6 +220,8 @@ function Tricasts() {
       return priceA - priceB;
     });
   };
+
+
 
 
 
