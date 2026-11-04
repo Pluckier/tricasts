@@ -90,17 +90,40 @@ function Tricasts() {
         prevProcessedRef.current = [];
       }
       setError(null);
-      try {
-        // Using 'no-store' tells the browser to bypass its cache and fetch from the network.
-        // Alternatively, you could append ?t=${Date.now()} to the URL for a guaranteed unique request.
-        const response = await fetch(
-          `https://www.pluckier.co.uk/${displayDate}-races.json`,
-          { cache: 'no-store' }
-        );
 
-        if (!response.ok) throw new Error('No data found for this date');
-        const data = await response.json();
+      try {
+        let data = null;
+
+        // STRATEGY A: Try getting the gzipped version first
+        try {
+          const response = await fetch(
+            `https://www.pluckier.co.uk/${displayDate}-races.json.gz`,
+            { cache: 'no-store' }
+          );
+
+          if (!response.ok) throw new Error('Gzipped data missing on server');
+
+          // Decompress the body stream natively
+          const decompressionStream = new DecompressionStream('gzip');
+          const decompressedStream = response.body.pipeThrough(decompressionStream);
+
+          data = await new Response(decompressedStream).json();
+        } catch (gzipErr) {
+          // STRATEGY B: Fallback to the uncompressed file if Gzip fails
+          console.warn('Gzip fetch or parsing failed, trying uncompressed fallback...', gzipErr);
+
+          const fallbackResponse = await fetch(
+            `https://www.pluckier.co.uk/${displayDate}-races.json`,
+            { cache: 'no-store' }
+          );
+
+          if (!fallbackResponse.ok) throw new Error('No data found for this date in any format');
+          data = await fallbackResponse.json();
+        }
+
+        // Apply data if either strategy succeeded
         setRaces(data || []);
+
       } catch (err) {
         setError(err.message);
       } finally {
