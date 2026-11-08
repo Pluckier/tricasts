@@ -456,7 +456,7 @@ function Tricasts() {
                           <div key={hIdx} className="selection-row">
                             <div className="selection-name-container">
                               <span className="selection-no">{horse.number}.</span>
-                              {horse.silks && <img src={horse.silks} alt="silks" className="selection-silks" />}
+                              {horse.silks && <img src={horse.silks.replace('https://www.attheraces.com', 'https://pluckier-silks.tonykennah.workers.dev')} alt="silks" className="selection-silks" />}
                               <span className="selection-name">{horse.name}</span>
                             </div>
                             <span className="selection-odds">{disp}{movement}</span>
