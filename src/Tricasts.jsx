@@ -94,20 +94,17 @@ function Tricasts() {
       try {
         let data = null;
 
+        const MS = 15 * 60 * 1000;
+        const delayToken = Math.floor(Date.now() / MS);
+        const cacheBuster = `?v=${delayToken}`;
+
         // STRATEGY A: Try getting the gzipped version first
         try {
-          const response = await fetch(
-            `https://www.pluckier.co.uk/${displayDate}-races.json.gz`,
-            { cache: 'no-store' }
-          );
+          const response = await fetch(`https://pluckier-cdn.tonykennah.workers.dev/${displayDate}-races.json.gz${cacheBuster}`, { cache: 'no-store' });
 
           if (!response.ok) throw new Error('Gzipped data missing on server');
 
-          // Decompress the body stream natively
-          const decompressionStream = new DecompressionStream('gzip');
-          const decompressedStream = response.body.pipeThrough(decompressionStream);
-
-          data = await new Response(decompressedStream).json();
+          data = await response.json();
         } catch (gzipErr) {
           // STRATEGY B: Fallback to the uncompressed file if Gzip fails
           console.warn('Gzip fetch or parsing failed, trying uncompressed fallback...', gzipErr);
